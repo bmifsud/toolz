@@ -73,7 +73,28 @@ Re-run the installer script to recreate the `/usr/local/bin` symlinks:
 
 ---
 
-## 5. Resetting a Stuck `tmux` Session
+## 5. Forcing Portrait (Stacked) or Landscape (Side-by-Side) Layout
+
+**Symptom**:
+You want to lock the workspace to always stack panes on top of each other (`even-vertical`) or always place them side-by-side (`even-horizontal`), or update an existing session that was created before upgrading `toolz`.
+
+**Fix**:
+Run `launch-ai-tmux.sh` with `--portrait`, `--landscape`, or `--auto` (can be applied live to an already-running session with `--no-attach`):
+
+```bash
+# Apply dynamic portrait/landscape auto-detection to the running session:
+~/toolz/scripts/launch-ai-tmux.sh --auto --no-attach
+
+# Lock to portrait (stacked vertically on top of each other):
+~/toolz/scripts/launch-ai-tmux.sh --portrait --no-attach
+
+# Lock to landscape (side-by-side columns):
+~/toolz/scripts/launch-ai-tmux.sh --landscape --no-attach
+```
+
+---
+
+## 6. Resetting a Stuck `tmux` Session
 
 If you want to start fresh with three brand-new agent panes:
 

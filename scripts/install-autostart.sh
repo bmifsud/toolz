@@ -4,7 +4,8 @@
 # Repository:  https://github.com/bmifsud/toolz
 # Description: Configures the Andronix Debian environment so that launching
 #              Debian from Termux (via start-debian.sh) automatically prepares
-#              and attaches to the 3-pane side-by-side AI workspace:
+#              and attaches to the 3-pane orientation-aware AI workspace
+#              (stacked top-to-bottom in portrait, side-by-side in landscape):
 #                1. Repairs any interrupted dpkg state and installs tmux if missing.
 #                2. Creates global symlinks in /usr/local/bin for agy, antigravity,
 #                   codex, and launch-ai-tmux.sh.
@@ -82,7 +83,13 @@ Installation Complete!
 ================================================================================
 What happens now:
   - Whenever ~/start-debian.sh runs in Termux, Debian's ~/.bashrc automatically
-    launches (or attaches to) the 3-pane side-by-side 'ai' tmux workspace.
+    launches (or attaches to) the 3-pane 'ai' tmux workspace:
+      * Portrait orientation:  Stacks sessions vertically on top of each other
+                               (even-vertical: Top, Middle, Bottom).
+      * Landscape orientation: Arranges sessions side-by-side in equal columns
+                               (even-horizontal: Left, Middle, Right).
+      * Rotating your device automatically switches between stacked and
+        side-by-side layouts in real time.
 
 Optional (Outer Termux Auto-Start):
   To make opening a new Termux window automatically run ~/start-debian.sh,

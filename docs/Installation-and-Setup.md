@@ -79,14 +79,28 @@ grep -q "start-debian.sh" ~/.bashrc 2>/dev/null || \
 
 ## Step 4: Verify the Setup
 
-Inside Debian, you can test the workspace creation without leaving your current shell:
+Inside Debian, you can test the workspace creation and orientation switching without leaving your current shell:
 
 ```bash
-~/toolz/scripts/launch-ai-tmux.sh --no-attach
+# Test Portrait Orientation (stacked top-to-bottom):
+~/toolz/scripts/launch-ai-tmux.sh --portrait --no-attach
 tmux list-panes -t ai:AI-Workspace -F "Pane #{pane_index}: title=#{pane_title} geom=#{pane_width}x#{pane_height}+#{pane_left}+#{pane_top}"
 ```
 
-Expected output (3 non-overlapping horizontal panes):
+Expected output in **Portrait** mode (3 vertically stacked panes sharing the full width, at top offsets `+1`, `+22`, `+43`):
+
+```text
+Pane 0: title=Antigravity geom=92x20+0+1
+Pane 1: title=Codex geom=92x20+0+22
+Pane 2: title=Jules geom=92x21+0+43
+```
+
+```bash
+# Restore automatic orientation detection (switches between portrait and landscape automatically):
+~/toolz/scripts/launch-ai-tmux.sh --auto --no-attach
+```
+
+When in **Landscape** mode (`180x45`), the panes arrange into 3 side-by-side columns:
 
 ```text
 Pane 0: title=Antigravity geom=59x44+0+1

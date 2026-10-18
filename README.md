@@ -1,16 +1,42 @@
 # toolz — Termux + Andronix Debian 3-Pane AI Workspace
 
-Automated multi-agent terminal workspace for **Termux + Andronix Debian (`proot`)** on Android. Launching Debian automatically opens a **3-pane side-by-side (non-overlapping) `tmux` workspace** running three AI coding assistants simultaneously:
+Automated multi-agent terminal workspace for **Termux + Andronix Debian (`proot`)** on Android. Launching Debian automatically opens a **3-pane orientation-aware (non-overlapping) `tmux` workspace** running three AI coding assistants simultaneously:
 
-1. **Pane 0 (Left)**: **Antigravity CLI** (`agy` / `antigravity`)
+1. **Pane 0 (Top in Portrait / Left in Landscape)**: **Antigravity CLI** (`agy` / `antigravity`)
 2. **Pane 1 (Middle)**: **OpenAI Codex CLI** (`codex --no-daemon`)
-3. **Pane 2 (Right)**: **Google Jules CLI** (`jules`)
+3. **Pane 2 (Bottom in Portrait / Right in Landscape)**: **Google Jules CLI** (`jules`)
 
 ---
 
-## Visual Layout
+## Visual Layout (Portrait vs. Landscape)
 
-Unlike standard `tmux new-window` tabs that stack windows on top of one another (hiding inactive agents), `launch-ai-tmux.sh` splits a single workspace window (`AI-Workspace`) using `even-horizontal` layout with touch/mouse support and top title borders:
+Unlike standard `tmux new-window` tabs that hide inactive agents in background windows, `launch-ai-tmux.sh` splits a single workspace window (`AI-Workspace`) with touch/mouse support and top title borders, automatically adapting to your screen's orientation and dynamically restacking whenever you rotate your device:
+
+### Portrait Orientation (`even-vertical` — Stacked Top-to-Bottom)
+When in **portrait** mode, the 3 sessions are stacked vertically on top of each other so every agent gets the full screen width:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ 0: Antigravity (agy)                                    │
+├─────────────────────────────────────────────────────────┤
+│  Antigravity CLI (agy)                                  │
+│  > _                                                    │
+├─────────────────────────────────────────────────────────┤
+│ 1: Codex (codex)                                        │
+├─────────────────────────────────────────────────────────┤
+│  OpenAI Codex CLI (codex --no-daemon)                   │
+│  › Ask Codex to do anything                             │
+├─────────────────────────────────────────────────────────┤
+│ 2: Jules (jules)                                        │
+├─────────────────────────────────────────────────────────┤
+│  Google Jules CLI (jules)                               │
+│  Working in: /home/b                                    │
+└─────────────────────────────────────────────────────────┘
+ [ai] 0:AI-Workspace*
+```
+
+### Landscape Orientation (`even-horizontal` — Side-by-Side Columns)
+When rotated to **landscape** mode, the 3 sessions automatically arrange into equal side-by-side columns:
 
 ```text
 ┌───────────────────┬───────────────────┬───────────────────┐
@@ -36,9 +62,9 @@ flowchart LR
     B --> C["Debian Login Shell (~/.bashrc)"]
     C --> D["scripts/launch-ai-tmux.sh"]
     D --> E["tmux session: ai (AI-Workspace)"]
-    E --> F["Pane 0: Antigravity CLI (agy)"]
-    E --> G["Pane 1: Codex CLI (codex --no-daemon)"]
-    E --> H["Pane 2: Google Jules CLI (jules)"]
+    E --> F{"Orientation Detection & Hooks"}
+    F -- "Portrait" --> G["even-vertical (Stacked Top-to-Bottom)"]
+    F -- "Landscape" --> H["even-horizontal (Side-by-Side Columns)"]
 ```
 
 ---
@@ -47,13 +73,13 @@ flowchart LR
 
 | Path | Description |
 | :--- | :--- |
-| [`scripts/launch-ai-tmux.sh`](scripts/launch-ai-tmux.sh) | Core launcher script that detects outer Termux vs. Debian `proot`, creates the 3-pane side-by-side `tmux` session (`ai`), enables touch/mouse mode, and launches `agy`, `codex --no-daemon`, and `jules`. |
+| [`scripts/launch-ai-tmux.sh`](scripts/launch-ai-tmux.sh) | Core launcher script that detects outer Termux vs. Debian `proot`, creates the 3-pane `tmux` session (`ai`), detects portrait (`even-vertical`) vs. landscape (`even-horizontal`) orientation, registers dynamic resize hooks, enables touch/mouse mode, and launches `agy`, `codex --no-daemon`, and `jules`. |
 | [`scripts/install-autostart.sh`](scripts/install-autostart.sh) | Idempotent setup script that installs `tmux`, configures `/usr/local/bin` symlinks (`agy`, `antigravity`, `codex`, `launch-ai-tmux.sh`), and registers the auto-launch hook in `~/.bashrc`. |
 | [`docs/Home.md`](docs/Home.md) | Wiki home page and documentation index. |
 | [`docs/Installation-and-Setup.md`](docs/Installation-and-Setup.md) | Complete step-by-step installation guide for both Debian and outer Termux. |
-| [`docs/Architecture-and-How-It-Works.md`](docs/Architecture-and-How-It-Works.md) | Technical deep-dive into `proot` process management, `codex --no-daemon`, and `tmux` geometry. |
-| [`docs/Usage-and-Shortcuts.md`](docs/Usage-and-Shortcuts.md) | Touch navigation, pane resizing, zooming, environment variables, and keyboard shortcuts. |
-| [`docs/Troubleshooting.md`](docs/Troubleshooting.md) | Solutions for common `dpkg`, `proot`, `PATH`, and `tmux` issues. |
+| [`docs/Architecture-and-How-It-Works.md`](docs/Architecture-and-How-It-Works.md) | Technical deep-dive into `proot` process management, `codex --no-daemon`, portrait/landscape detection, and `tmux` geometry hooks. |
+| [`docs/Usage-and-Shortcuts.md`](docs/Usage-and-Shortcuts.md) | Touch navigation, pane resizing, zooming, orientation flags, environment variables, and keyboard shortcuts. |
+| [`docs/Troubleshooting.md`](docs/Troubleshooting.md) | Solutions for common `dpkg`, `proot`, `PATH`, orientation, and `tmux` issues. |
 
 ---
 
@@ -88,20 +114,28 @@ grep -q "start-debian.sh" ~/.bashrc 2>/dev/null || \
 
 ## Usage
 
-### Automatic Launch
+### Automatic Launch & Dynamic Rotation
 Every time you start a new interactive Debian session via `~/start-debian.sh`, `~/.bashrc` invokes `launch-ai-tmux.sh` and attaches to the `ai` session.
+- **In Portrait**: Sessions automatically stack vertically on top of each other (`even-vertical`).
+- **In Landscape**: Sessions automatically sit side-by-side (`even-horizontal`).
+- **Rotating Your Device**: `tmux` `client-resized` and `window-resized` hooks automatically restack or unstack the panes in real time whenever you rotate between portrait and landscape.
 
-### Manual Launch
-You can also run the launcher manually from either Termux or Debian:
+### Manual Launch & Orientation Overrides
+You can also run the launcher manually from either Termux or Debian, or lock a specific orientation:
 
 ```bash
-# Inside Debian (via global symlink or repo path):
+# Auto-detect portrait vs. landscape (default):
 launch-ai-tmux.sh
-# or
-~/toolz/scripts/launch-ai-tmux.sh
 
-# Pre-create the session in the background without attaching:
-~/toolz/scripts/launch-ai-tmux.sh --no-attach
+# Force portrait layout (stack all 3 sessions vertically on top of each other):
+launch-ai-tmux.sh --portrait
+
+# Force landscape layout (3 side-by-side columns):
+launch-ai-tmux.sh --landscape
+
+# Pre-create/update the session in the background without attaching:
+launch-ai-tmux.sh --no-attach
+launch-ai-tmux.sh --portrait --no-attach
 ```
 
 ### Bypassing Auto-Launch for a Single Shell
@@ -117,10 +151,10 @@ SKIP_AI_TMUX=1 bash
 
 Because `mouse on` is enabled in the `ai` session, you can interact with the 3 panes directly on your Android touchscreen:
 
-- **Switch active agent pane**: Tap anywhere inside **Pane 0 (`Antigravity`)**, **Pane 1 (`Codex`)**, or **Pane 2 (`Jules`)** — or press `Ctrl+b` followed by `Left` / `Right` arrow keys.
-- **Resize panes**: Drag the vertical border between panes with your finger, or press `Ctrl+b` + hold `Alt` + `Left`/`Right`.
-- **Full-screen zoom a single pane (toggle)**: Press `Ctrl+b` then `z` to temporarily expand the active pane to full screen; press `Ctrl+b` then `z` again to restore the 3-column side-by-side view.
-- **Rotate layout (Horizontal ↔ Vertical ↔ Tiled)**: Press `Ctrl+b` then `Space` to cycle pane layouts if you rotate your device between landscape and portrait.
+- **Switch active agent pane**: Tap anywhere inside **Pane 0 (`Antigravity`)**, **Pane 1 (`Codex`)**, or **Pane 2 (`Jules`)** — or press `Ctrl+b` followed by `Up` / `Down` (portrait) or `Left` / `Right` (landscape) arrow keys.
+- **Resize panes**: Drag the horizontal border (portrait) or vertical border (landscape) between panes with your finger.
+- **Full-screen zoom a single pane (toggle)**: Press `Ctrl+b` then `z` to temporarily expand the active pane to full screen; press `Ctrl+b` then `z` again to restore the 3-pane view.
+- **Manually cycle layout**: Press `Ctrl+b` then `Space` to manually cycle pane layouts.
 - **Detach from workspace (keep agents running in background)**: Press `Ctrl+b` then `d`.
 
 ---
@@ -132,6 +166,8 @@ Because `mouse on` is enabled in the `ai` session, you can interact with the 3 p
 | `DEBIAN_LAUNCHER` | `~/start-debian.sh` (or `~/start_debian.sh`) | Path to the Andronix Debian startup script when invoked from outer Termux. |
 | `AI_SESSION_NAME` | `ai` | Name of the `tmux` session created/attached by `launch-ai-tmux.sh`. |
 | `AI_WORKDIR` | `$HOME` (`/home/b`) | Initial working directory for all 3 agent panes. |
+| `AI_ORIENTATION` | `auto` | Orientation mode: `auto` (dynamic portrait/landscape switching), `portrait` (always stack vertically), or `landscape` (always side-by-side). |
+| `AI_MIN_LANDSCAPE_COLS` | `115` | Minimum column width required to switch to 3 side-by-side columns in `auto` mode. Keeps portrait mode stacked vertically even when the Android soft keyboard shrinks terminal height. |
 | `SKIP_AI_TMUX` | *(unset)* | Set to `1` to skip auto-launching `launch-ai-tmux.sh` from `~/.bashrc`. |
 
 ---
