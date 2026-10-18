@@ -1,14 +1,14 @@
-# OmniRoute & Cline CLI Backup & Restore Utility for Android Debian Environments
+# OmniRoute & Cline CLI Backup, Restore & Google Drive Sync Utility
 
-This utility provides automated, secure backup and restoration for **OmniRoute** and **Cline CLI** running in Android Linux terminal environments (such as native Android Linux Terminal VMs or Termux `proot-distro` Debian).
+This utility provides automated, secure backup, AES-256 encryption, Google Drive cloud sync, and restoration for **OmniRoute** and **Cline CLI** running in Android Linux terminal environments (Android Linux Terminal VMs or Termux `proot-distro` Debian).
 
 ---
 
 ## Technical Constraints Addressed
 
 1. **SQLite WAL Locking on OmniRoute**: OmniRoute stores provider keys and routing rules in `~/.omniroute/storage.sqlite` using Write-Ahead Logging (WAL) mode. Simple `cp` commands while the daemon is listening on port `20128` can cause snapshot corruption. This script uses the SQLite Online Backup API (`sqlite3 .backup`) to ensure atomic hot backups.
-2. **Container Reset Volatility**: Android terminal environments can be reset or clear app data, wiping `~/`. This script exports backups directly to Android shared storage (`/mnt/shared` or `/sdcard`).
-3. **Shared Storage Permission Stripping**: Moving files to Android shared storage strips file permission protections (`chmod 600`), exposing API keys in `secrets.json` and `.env`. This script uses symmetric AES-256 encryption (`gpg --symmetric`) before writing to shared storage.
+2. **Container Reset Volatility**: Android terminal environments can be reset or clear app data, wiping `~/`. This script exports backups directly to Android shared storage (`/mnt/shared` or `/sdcard`) and syncs them to Google Drive via `rclone`.
+3. **Shared Storage Permission Stripping**: Moving files to Android shared storage strips file permission protections (`chmod 600`), exposing API keys in `secrets.json` and `.env`. This script uses symmetric AES-256 encryption (`gpg --symmetric`) before writing to shared storage or cloud sync.
 
 ---
 
@@ -26,31 +26,36 @@ This utility provides automated, secure backup and restoration for **OmniRoute**
 
 ## Usage Guide
 
-### 1. Prerequisites
-Ensure `sqlite3`, `jq`, `curl`, and `gnupg` are installed:
+### 1. Prerequisites & Installation
+Ensure `sqlite3`, `gpg`, `jq`, `curl`, `tar`, and `rclone` are installed:
 ```bash
-sudo apt-get update && sudo apt-get install -y sqlite3 jq curl gnupg
+sudo apt-get update && sudo apt-get install -y sqlite3 gnupg jq curl tar rclone
+```
+Configure your Google Drive remote in `rclone`:
+```bash
+rclone config
+# Create a remote named 'gdrive' (Google Drive)
 ```
 
 ### 2. Make Script Executable
 ```bash
-chmod +x backup_cline_omniroute.sh
+chmod +x ~/backup_cline_omniroute.sh
 ```
 
-### 3. Run a Backup
-Run the script from your project repository root (you will be prompted for a GPG passphrase):
-```bash
-./backup_cline_omniroute.sh backup "$(pwd)"
-```
+### 3. Execution Modes
 
-### 4. Verify Backup Archive
-Inspect the backup archive manifest without extracting to disk:
-```bash
-gpg --decrypt /mnt/shared/ClineOmniRouteBackups/cline_omniroute_backup_*.tar.gz.gpg 2>/dev/null | tar -tzv
-```
-*(Replace `/mnt/shared` with `/sdcard` if running under Termux).*
+- **Run Backup & Google Drive Sync**:
+  ```bash
+  ~/backup_cline_omniroute.sh backup "$(pwd)"
+  ```
+  *(Optional: export `BACKUP_PASSPHRASE="your_passphrase"` for non-interactive GPG encryption).*
 
-### 5. Restore from Backup
-```bash
-./backup_cline_omniroute.sh --restore /mnt/shared/ClineOmniRouteBackups/cline_omniroute_backup_YYYYMMDD_HHMMSS.tar.gz.gpg /path/to/workspace
-```
+- **Restore from Local Encrypted Backup**:
+  ```bash
+  ~/backup_cline_omniroute.sh --restore /mnt/shared/ClineOmniRouteBackups/cline_omniroute_backup_YYYYMMDD_HHMMSS.tar.gz.gpg /path/to/workspace
+  ```
+
+- **Restore Directly from Google Drive**:
+  ```bash
+  ~/backup_cline_omniroute.sh --restore-gdrive /path/to/workspace
+  ```
