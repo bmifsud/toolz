@@ -29,3 +29,15 @@ Once you have executed `termux_script.py` on your Android device or `check_subsc
    - **Manual Verification**: Review the active items and note their service names, billing cycles, and renewal dates.
    - **API / Secure Sync**: Pass the generated JSON payload (`opus_subscription_connect.json`) to your Opus secure ingestion endpoint or webhook.
    - *Security Best Practice*: Ensure that any raw session cookies or sensitive auth tokens are stripped before transmitting, keeping only metadata (subscription name, status, renewal date) for Opus tracking.
+
+## Integrating with Omniroute (`http://localhost:20128`)
+
+The ultimate goal of this toolset is to discover your active subscriptions (such as AI model subscriptions purchased via Google Play / web billing) and automatically add them as model providers in your local **Omniroute** instance running at `http://localhost:20128`.
+
+### How to use `omniroute_connector.py`:
+1. Ensure your local Omniroute instance is running at `http://localhost:20128`.
+2. Run the connector script:
+   ```bash
+   python3 omniroute_connector.py
+   ```
+3. The script will post the extracted subscription configuration to Omniroute's provider API (`http://localhost:20128/api/providers`), seamlessly connecting your subscriptions for routing.
