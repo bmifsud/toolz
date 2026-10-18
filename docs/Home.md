@@ -9,10 +9,13 @@ Welcome to the **`toolz`** documentation wiki. This repository provides automati
 When working on an Android device using **Termux** and an **Andronix Debian** Linux installation (`start-debian.sh`), manually starting multiple sessions and launching individual AI CLIs in each session is repetitive—and using standard `tmux` windows (`new-window`) hides background terminals so only one tool is visible at a time.
 
 `toolz` automates the entire workflow:
-1. **Detects Environment Automatically**: Whether invoked from outer Termux or inside Debian `proot`, [`scripts/launch-ai-tmux.sh`](../scripts/launch-ai-tmux.sh) transitions into Debian seamlessly.
-2. **Creates 3 Distinct Orientation-Aware GUI Panes**: Splits a single `tmux` window (`AI-Workspace`) into three equal panes so all three tools are visible at the same time:
-   - **Portrait Orientation (`even-vertical`)**: Stacks the 3 sessions vertically on top of each other (Top, Middle, Bottom) so each pane receives the full terminal width.
-   - **Landscape Orientation (`even-horizontal`)**: Places the 3 sessions side-by-side in equal columns (Left, Middle, Right).
+1. **Dedicated 1-, 2-, and 3-Session Launchers**:
+   - [`scripts/start-debian-1.sh`](../scripts/start-debian-1.sh): Launches **1 session** (`Pane 0: Antigravity`).
+   - [`scripts/start-debian-2.sh`](../scripts/start-debian-2.sh): Launches **2 sessions** (`Pane 0: Antigravity`, `Pane 1: Codex`).
+   - [`scripts/start-debian-3.sh`](../scripts/start-debian-3.sh) / [`scripts/start-debian.sh`](../scripts/start-debian.sh): Launches **3 sessions** (`Pane 0: Antigravity`, `Pane 1: Codex`, `Pane 2: Jules`).
+2. **Creates Orientation-Aware GUI Panes**: Splits a single `tmux` window (`AI-Workspace`) into 1, 2, or 3 equal panes so all active tools are visible at the same time:
+   - **Portrait Orientation (`even-vertical`)**: Stacks active sessions vertically on top of each other (Top to Bottom) so each pane receives the full terminal width.
+   - **Landscape Orientation (`even-horizontal`)**: Places active sessions side-by-side in equal columns (Left to Right).
    - **Live Rotation Switching**: Registers `tmux` resize hooks (`client-attached`, `client-resized`, `window-resized`) so rotating your Android device between portrait and landscape automatically restacks or unstacks the panes in real time:
      - **Pane 0 (`Antigravity`)**: Google Antigravity CLI (`agy`)
      - **Pane 1 (`Codex`)**: OpenAI Codex CLI (`codex --no-daemon`)

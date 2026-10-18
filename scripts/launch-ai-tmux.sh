@@ -2,19 +2,22 @@
 # ==============================================================================
 # File:        scripts/launch-ai-tmux.sh
 # Repository:  https://github.com/bmifsud/toolz
-# Description: Launches a 3-pane orientation-aware (non-overlapping) tmux
-#              workspace inside Andronix Debian (on Termux) running:
-#                - Pane 0 (Top / Left):     Antigravity CLI (agy)
-#                - Pane 1 (Middle):         OpenAI Codex CLI (codex --no-daemon)
-#                - Pane 2 (Bottom / Right): Google Jules CLI (jules)
+# Description: Launches a 1-, 2-, or 3-pane orientation-aware (non-overlapping)
+#              tmux workspace inside Andronix Debian (on Termux) running:
+#                - 1 Session:  Pane 0 (Antigravity CLI: agy)
+#                - 2 Sessions: Pane 0 (Antigravity CLI: agy)
+#                              Pane 1 (OpenAI Codex CLI: codex --no-daemon)
+#                - 3 Sessions: Pane 0 (Antigravity CLI: agy)
+#                              Pane 1 (OpenAI Codex CLI: codex --no-daemon)
+#                              Pane 2 (Google Jules CLI: jules)
 #
 # Orientation Behavior:
 #   - Portrait Orientation (even-vertical):
-#       Stacks all 3 agent sessions vertically on top of each other (Top,
-#       Middle, Bottom) so each pane gets the full terminal width.
+#       Stacks all active agent sessions vertically on top of each other (Top
+#       to Bottom) so each pane gets the full terminal width.
 #   - Landscape Orientation (even-horizontal):
-#       Arranges all 3 agent sessions side-by-side in equal columns (Left,
-#       Middle, Right).
+#       Arranges all active agent sessions side-by-side in equal columns (Left
+#       to Right).
 #   - Dynamic Rotation Hooks:
 #       Registers tmux hooks (client-attached, client-resized, window-resized)
 #       so rotating the Android device between portrait and landscape
@@ -25,22 +28,26 @@
 #      Detects that it is running outside Debian and automatically invokes the
 #      Andronix launcher (~/start-debian.sh or ~/start_debian.sh).
 #   2. Inside Debian (proot):
-#      Creates (or attaches to) the "ai" tmux session with 3 evenly tiled
-#      panes, mouse/touch support enabled, and top title bars.
+#      Creates (or attaches to) the "ai" tmux session with 1, 2, or 3 evenly
+#      tiled panes, mouse/touch support enabled, and top title bars.
 #
 # Environment Variables:
 #   DEBIAN_LAUNCHER        Path to the Andronix Debian startup script in Termux.
 #                          Defaults to ~/start-debian.sh (falls back to ~/start_debian.sh).
 #   AI_SESSION_NAME        Name of the tmux session to create/attach (default: "ai").
-#   AI_WORKDIR             Initial working directory for all 3 panes (default: "$HOME").
+#   AI_SESSION_COUNT       Number of agent sessions/panes to launch: 1, 2, or 3
+#                          (default: 3, or value in ~/.ai_session_count).
+#   AI_WORKDIR             Initial working directory for all panes (default: "$HOME").
 #   AI_ORIENTATION         Layout mode: "auto" (default), "portrait", or "landscape".
 #   AI_MIN_LANDSCAPE_COLS  Minimum terminal width (columns) required to use the
-#                          3-column side-by-side layout in "auto" mode (default: 115).
+#                          side-by-side column layout in "auto" mode (default: 115).
 #                          Ensures portrait mode stays vertically stacked even when
 #                          the Android on-screen keyboard reduces terminal height.
 #
 # Flags:
-#   --no-attach            Create and configure the 3-pane tmux session in the
+#   --sessions <1|2|3>     Number of sessions/panes to launch (1, 2, or 3).
+#   -1 / -2 / -3           Shorthand flags for 1, 2, or 3 sessions.
+#   --no-attach            Create and configure the tmux session in the
 #                          background without attaching the current terminal.
 #   --portrait             Force portrait layout (stack panes on top of each other).
 #   --landscape            Force landscape layout (side-by-side columns).
@@ -53,13 +60,48 @@ set -euo pipefail
 # Step 0: Parse Command-Line Flags
 # ------------------------------------------------------------------------------
 NO_ATTACH=0
-ORIENTATION_MODE="${AI_ORIENTATION:-auto}"
+ORIENTATION_MODE="${AI_ORIENTATION:-}"
 MIN_LANDSCAPE_COLS="${AI_MIN_LANDSCAPE_COLS:-115}"
+REQUESTED_SESSIONS="${AI_SESSION_COUNT:-}"
+EXPLICIT_SESSIONS=0
+
+if [[ -n "$REQUESTED_SESSIONS" ]]; then
+    EXPLICIT_SESSIONS=1
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-attach)
             NO_ATTACH=1
+            shift
+            ;;
+        --sessions|--panes|-n)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: $1 requires a value (1, 2, or 3)" >&2
+                exit 1
+            fi
+            REQUESTED_SESSIONS="$2"
+            EXPLICIT_SESSIONS=1
+            shift 2
+            ;;
+        --sessions=*|--panes=*)
+            REQUESTED_SESSIONS="${1#*=}"
+            EXPLICIT_SESSIONS=1
+            shift
+            ;;
+        -1|--1|1)
+            REQUESTED_SESSIONS=1
+            EXPLICIT_SESSIONS=1
+            shift
+            ;;
+        -2|--2|2)
+            REQUESTED_SESSIONS=2
+            EXPLICIT_SESSIONS=1
+            shift
+            ;;
+        -3|--3|3)
+            REQUESTED_SESSIONS=3
+            EXPLICIT_SESSIONS=1
             shift
             ;;
         --portrait|--vertical|--stack)
@@ -75,16 +117,28 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            sed -n '2,47p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '2,54p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
             echo "Error: Unknown argument '$1'" >&2
-            echo "Usage: $0 [--no-attach] [--portrait | --landscape | --auto]" >&2
+            echo "Usage: $0 [--sessions 1|2|3] [-1|-2|-3] [--no-attach] [--portrait | --landscape | --auto]" >&2
             exit 1
             ;;
     esac
 done
+
+# Read persisted orientation or session count from ~/.ai_orientation / ~/.ai_session_count if not explicitly passed
+STATE_FILE_SESSIONS="${HOME}/.ai_session_count"
+STATE_FILE_ORIENTATION="${HOME}/.ai_orientation"
+
+if [[ -z "$ORIENTATION_MODE" ]]; then
+    if [[ -f "$STATE_FILE_ORIENTATION" ]]; then
+        ORIENTATION_MODE="$(tr -d '[:space:]' < "$STATE_FILE_ORIENTATION" 2>/dev/null || echo "auto")"
+    else
+        ORIENTATION_MODE="auto"
+    fi
+fi
 
 # Normalize ORIENTATION_MODE
 case "${ORIENTATION_MODE,,}" in
@@ -100,12 +154,33 @@ case "${ORIENTATION_MODE,,}" in
 esac
 export AI_ORIENTATION="$ORIENTATION_MODE"
 
+if [[ -z "$REQUESTED_SESSIONS" && -f "$STATE_FILE_SESSIONS" ]]; then
+    REQUESTED_SESSIONS="$(tr -d '[:space:]' < "$STATE_FILE_SESSIONS" 2>/dev/null || true)"
+fi
+
+if [[ -n "$REQUESTED_SESSIONS" ]]; then
+    if [[ ! "$REQUESTED_SESSIONS" =~ ^[123]$ ]]; then
+        echo "Error: Session count must be 1, 2, or 3 (got '$REQUESTED_SESSIONS')" >&2
+        exit 1
+    fi
+    echo "$REQUESTED_SESSIONS" > "$STATE_FILE_SESSIONS" 2>/dev/null || true
+    export AI_SESSION_COUNT="$REQUESTED_SESSIONS"
+fi
+
 # ------------------------------------------------------------------------------
 # Step 1: Detect Execution Environment (Outer Termux vs. Inside Debian proot)
 # ------------------------------------------------------------------------------
 # If neither /etc/debian_version nor ANDRONIX_DISTRO=debian is present, we are
 # running in the outer Android Termux environment and need to enter Debian first.
 if [[ ! -f /etc/debian_version && "${ANDRONIX_DISTRO:-}" != "debian" ]]; then
+    DEBIAN_ROOTFS="${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}"
+    if [[ -d "${DEBIAN_ROOTFS}/home/b" ]]; then
+        if [[ -n "$REQUESTED_SESSIONS" ]]; then
+            echo "$REQUESTED_SESSIONS" > "${DEBIAN_ROOTFS}/home/b/.ai_session_count" 2>/dev/null || true
+        fi
+        echo "$ORIENTATION_MODE" > "${DEBIAN_ROOTFS}/home/b/.ai_orientation" 2>/dev/null || true
+    fi
+
     if [[ -z "${DEBIAN_LAUNCHER:-}" ]]; then
         if [[ -x "$HOME/start-debian.sh" ]]; then
             DEBIAN_LAUNCHER="$HOME/start-debian.sh"
@@ -184,7 +259,7 @@ is_portrait_geometry() {
     # so cols < rows * 2 indicates a portrait pixel viewport. Additionally, if
     # total width is below MIN_LANDSCAPE_COLS (default 115), keep panes stacked
     # vertically so opening the Android soft keyboard in portrait mode does not
-    # flip the workspace into cramped 3-column strips.
+    # flip the workspace into cramped columns.
     if (( cols < rows * 2 || cols < MIN_LANDSCAPE_COLS )); then
         return 0
     fi
@@ -202,26 +277,53 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Step 4: Create the 3-Pane Workspace (If Not Already Running)
+# Step 4: Create or Scale the Workspace (1, 2, or 3 Sessions)
 # ------------------------------------------------------------------------------
+PANE0_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Antigravity\033\\'; agy; exec bash -i"
+PANE1_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Codex\033\\'; codex --no-daemon; exec bash -i"
+PANE2_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Jules\033\\'; jules; exec bash -i"
+
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+    TARGET_SESSIONS="${REQUESTED_SESSIONS:-3}"
+
     # Pane 0 (Top in portrait / Left in landscape): Antigravity CLI (agy)
-    # After agy exits, 'exec bash -i' keeps the pane open at an interactive prompt.
-    tmux new-session -d -s "$SESSION" -n "$WINDOW" -c "$WORKDIR" -x "$INIT_COLS" -y "$INIT_ROWS" \
-        "export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Antigravity\033\\'; agy; exec bash -i"
+    tmux new-session -d -s "$SESSION" -n "$WINDOW" -c "$WORKDIR" -x "$INIT_COLS" -y "$INIT_ROWS" "$PANE0_CMD"
 
-    # Pane 1 (Middle): Codex CLI
-    # NOTE: '--no-daemon' is required inside Andronix proot to bypass Unix domain
-    # socket connection errors with the background app-server daemon.
-    tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" \
-        "export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Codex\033\\'; codex --no-daemon; exec bash -i"
+    # Pane 1 (Middle / Second): Codex CLI (if 2 or 3 sessions requested)
+    if (( TARGET_SESSIONS >= 2 )); then
+        tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE1_CMD"
+    fi
 
-    # Pane 2 (Bottom in portrait / Right in landscape): Google Jules CLI
-    tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" \
-        "export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Jules\033\\'; jules; exec bash -i"
+    # Pane 2 (Bottom / Right): Google Jules CLI (if 3 sessions requested)
+    if (( TARGET_SESSIONS >= 3 )); then
+        tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE2_CMD"
+    fi
 
     # Focus Pane 0 (Antigravity) by default.
     tmux select-pane -t "${SESSION}:${WINDOW}.0"
+elif [[ "$EXPLICIT_SESSIONS" -eq 1 && -n "$REQUESTED_SESSIONS" ]]; then
+    # Dynamically scale an existing session to match the requested session count (1, 2, or 3)
+    TARGET_SESSIONS="$REQUESTED_SESSIONS"
+    # Ensure window is unzoomed before adding/removing panes
+    if [[ "$(tmux display-message -t "${SESSION}:${WINDOW}" -p '#{window_zoomed_flag}' 2>/dev/null || echo 0)" == "1" ]]; then
+        tmux resize-pane -Z -t "${SESSION}:${WINDOW}" 2>/dev/null || true
+    fi
+
+    CURRENT_PANES="$(tmux list-panes -t "${SESSION}:${WINDOW}" 2>/dev/null | wc -l | tr -d ' ')"
+    while (( CURRENT_PANES < TARGET_SESSIONS )); do
+        if (( CURRENT_PANES == 1 )); then
+            tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE1_CMD"
+        elif (( CURRENT_PANES == 2 )); then
+            tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE2_CMD"
+        fi
+        CURRENT_PANES=$((CURRENT_PANES + 1))
+    done
+
+    while (( CURRENT_PANES > TARGET_SESSIONS )); do
+        LAST_PANE=$((CURRENT_PANES - 1))
+        tmux kill-pane -t "${SESSION}:${WINDOW}.${LAST_PANE}" 2>/dev/null || true
+        CURRENT_PANES=$((CURRENT_PANES - 1))
+    done
 fi
 
 # ------------------------------------------------------------------------------
@@ -236,9 +338,15 @@ tmux set-option -t "$SESSION" -g mouse on
 # child CLIs cannot overwrite "Antigravity", "Codex", or "Jules".
 tmux set-option -t "$SESSION" -g pane-border-status top
 tmux set-option -t "$SESSION" -g pane-border-format " #[bold]#{pane_index}: #{pane_title} (#{pane_current_command}) "
+
+ACTIVE_PANES="$(tmux list-panes -t "${SESSION}:${WINDOW}" 2>/dev/null | wc -l | tr -d ' ')"
 tmux select-pane -t "${SESSION}:${WINDOW}.0" -T "Antigravity" 2>/dev/null || true
-tmux select-pane -t "${SESSION}:${WINDOW}.1" -T "Codex" 2>/dev/null || true
-tmux select-pane -t "${SESSION}:${WINDOW}.2" -T "Jules" 2>/dev/null || true
+if (( ACTIVE_PANES >= 2 )); then
+    tmux select-pane -t "${SESSION}:${WINDOW}.1" -T "Codex" 2>/dev/null || true
+fi
+if (( ACTIVE_PANES >= 3 )); then
+    tmux select-pane -t "${SESSION}:${WINDOW}.2" -T "Jules" 2>/dev/null || true
+fi
 tmux set-option -w -t "${SESSION}:${WINDOW}" allow-set-title off 2>/dev/null || true
 
 # Configure orientation hooks so rotating the device (or attaching from a new

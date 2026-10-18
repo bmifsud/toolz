@@ -42,14 +42,18 @@ chmod +x ~/toolz/scripts/*.sh
    Ensures `~/toolz/scripts/launch-ai-tmux.sh` has executable (`chmod +x`) permissions.
 2. **Repairs `dpkg` and Installs `tmux`**:
    Checks whether `tmux` is installed in Debian (`/usr/bin/tmux`). If missing, it runs `sudo dpkg --configure -a` (to clear any interrupted package installations), updates `apt`, and installs `tmux`.
-3. **Creates Global `/usr/local/bin` Symlinks**:
-   Because `proot` initializes `PATH` to `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` before reading user shell configs, `install-autostart.sh` links your CLI binaries into `/usr/local/bin`:
+3. **Creates Global `/usr/local/bin` and `~/` Symlinks**:
+   Because `proot` initializes `PATH` to `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin` before reading user shell configs, `install-autostart.sh` links your CLI binaries and session launchers into `/usr/local/bin` and `~/`:
    - `/usr/local/bin/agy` → `~/.local/bin/agy`
    - `/usr/local/bin/antigravity` → `~/.local/bin/agy`
    - `/usr/local/bin/codex` → `~/.local/bin/codex`
    - `/usr/local/bin/launch-ai-tmux.sh` → `~/toolz/scripts/launch-ai-tmux.sh`
-4. **Exports a Copy to Shared Storage (`/sdcard/Download`)**:
-   If `/sdcard/Download` is mounted inside Debian, copies `launch-ai-tmux.sh` there so it is accessible from Android/Termux as well.
+   - `/usr/local/bin/start-debian.sh` & `~/start-debian.sh` → `~/toolz/scripts/start-debian.sh`
+   - `/usr/local/bin/start-debian-1.sh` & `~/start-debian-1.sh` → `~/toolz/scripts/start-debian-1.sh` (1 session)
+   - `/usr/local/bin/start-debian-2.sh` & `~/start-debian-2.sh` → `~/toolz/scripts/start-debian-2.sh` (2 sessions)
+   - `/usr/local/bin/start-debian-3.sh` & `~/start-debian-3.sh` → `~/toolz/scripts/start-debian-3.sh` (3 sessions)
+4. **Exports Copies to Shared Storage (`/sdcard/Download`)**:
+   If `/sdcard/Download` is mounted inside Debian, copies `launch-ai-tmux.sh` and `start-debian*.sh` there so they are accessible from Android/Termux as well.
 5. **Registers the Auto-Launch Hook in Debian's `~/.bashrc`**:
    Appends a guarded block to `/home/b/.bashrc`:
    ```bash
@@ -64,15 +68,24 @@ chmod +x ~/toolz/scripts/*.sh
 
 ---
 
-## Step 3: Configure Outer Termux to Auto-Run `start-debian.sh`
+## Step 3: Install `start-debian-{1,2,3}.sh` in Outer Termux
 
-By default, opening a new Termux session drops you into the outer Android Termux shell (`/data/data/com.termux/files/home`), where you have to type `./start-debian.sh`.
-
-To make Termux **automatically** launch `~/start-debian.sh` (which in turn triggers Debian's `~/.bashrc` and opens the 3-pane AI workspace), run this command once in an **outer Termux shell** (before entering Debian):
+To launch 1, 2, or 3 sessions directly from your **outer Android Termux shell** (`/data/data/com.termux/files/home`), copy the launcher scripts from the Debian rootfs into your Termux home directory:
 
 ```bash
-grep -q "start-debian.sh" ~/.bashrc 2>/dev/null || \
-  echo '[ -z "$DEBIAN_STARTED" ] && export DEBIAN_STARTED=1 && exec ~/start-debian.sh' >> ~/.bashrc
+cp ~/.andronix/distros/debian/rootfs/home/b/toolz/scripts/start-debian*.sh ~/ && chmod +x ~/start-debian*.sh
+```
+
+You can now run any of the three launchers from outer Termux:
+- `~/start-debian-1.sh` — Starts Debian with **1 session** (`Antigravity`)
+- `~/start-debian-2.sh` — Starts Debian with **2 sessions** (`Antigravity` + `Codex`)
+- `~/start-debian-3.sh` (or `~/start-debian.sh`) — Starts Debian with **3 sessions** (`Antigravity` + `Codex` + `Jules`)
+
+To make Termux **automatically** launch `~/start-debian-3.sh` (or `-1` / `-2`) when opening the app, run this once in outer Termux:
+
+```bash
+grep -q "start-debian" ~/.bashrc 2>/dev/null || \
+  echo '[ -z "$DEBIAN_STARTED" ] && export DEBIAN_STARTED=1 && exec ~/start-debian-3.sh' >> ~/.bashrc
 ```
 
 ---

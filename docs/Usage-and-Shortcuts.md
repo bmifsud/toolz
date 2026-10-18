@@ -34,29 +34,50 @@ All `tmux` commands start with the prefix key **`Ctrl+b`**, followed by a comman
 
 ---
 
-## 3. Command-Line Options & Environment Variables
+## 3. Session Launchers & Command-Line Options
 
-### Command-Line Flags
+### Launching 1, 2, or 3 Sessions (`start-debian-{1,2,3}.sh`)
+```bash
+# Launch (or scale running workspace to) 1 session (Antigravity):
+~/start-debian-1.sh
+# or: launch-ai-tmux.sh --sessions 1
+
+# Launch (or scale running workspace to) 2 sessions (Antigravity + Codex):
+~/start-debian-2.sh
+# or: launch-ai-tmux.sh --sessions 2
+
+# Launch (or scale running workspace to) 3 sessions (Antigravity + Codex + Jules):
+~/start-debian-3.sh
+# or: ~/start-debian.sh
+# or: launch-ai-tmux.sh --sessions 3
+```
+
+### Orientation Command-Line Flags
 ```bash
 # Launch and auto-detect portrait vs. landscape orientation (default):
 ~/toolz/scripts/launch-ai-tmux.sh
 
-# Force portrait orientation (stack all 3 sessions vertically on top of each other):
+# Force portrait orientation (stack active sessions vertically on top of each other):
 ~/toolz/scripts/launch-ai-tmux.sh --portrait
+~/start-debian-2.sh --portrait
 
-# Force landscape orientation (3 side-by-side columns):
+# Force landscape orientation (side-by-side columns):
 ~/toolz/scripts/launch-ai-tmux.sh --landscape
+~/start-debian-3.sh --landscape
 
 # Restore automatic orientation detection on an existing session:
 ~/toolz/scripts/launch-ai-tmux.sh --auto
 
-# Create/update the 3-pane workspace in the background without attaching:
+# Create/update the workspace in the background without attaching:
 ~/toolz/scripts/launch-ai-tmux.sh --no-attach
-~/toolz/scripts/launch-ai-tmux.sh --portrait --no-attach
+~/start-debian-2.sh --portrait --no-attach
 ```
 
 ### Customizing via Environment Variables
 ```bash
+# Launch a specific number of sessions (1, 2, or 3):
+AI_SESSION_COUNT=2 ~/toolz/scripts/launch-ai-tmux.sh
+
 # Always stack panes vertically in portrait mode:
 AI_ORIENTATION=portrait ~/toolz/scripts/launch-ai-tmux.sh
 

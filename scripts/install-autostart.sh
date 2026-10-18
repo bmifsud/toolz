@@ -3,15 +3,16 @@
 # File:        scripts/install-autostart.sh
 # Repository:  https://github.com/bmifsud/toolz
 # Description: Configures the Andronix Debian environment so that launching
-#              Debian from Termux (via start-debian.sh) automatically prepares
-#              and attaches to the 3-pane orientation-aware AI workspace
-#              (stacked top-to-bottom in portrait, side-by-side in landscape):
+#              Debian from Termux automatically prepares and attaches to the
+#              1-, 2-, or 3-pane orientation-aware AI workspace (stacked
+#              top-to-bottom in portrait, side-by-side in landscape):
 #                1. Repairs any interrupted dpkg state and installs tmux if missing.
-#                2. Creates global symlinks in /usr/local/bin for agy, antigravity,
-#                   codex, and launch-ai-tmux.sh.
+#                2. Creates global symlinks in /usr/local/bin and ~/ for agy,
+#                   antigravity, codex, launch-ai-tmux.sh, start-debian.sh,
+#                   start-debian-1.sh, start-debian-2.sh, and start-debian-3.sh.
 #                3. Adds an idempotent, loop-guarded auto-launch hook to ~/.bashrc.
-#                4. Copies launch-ai-tmux.sh to /sdcard/Download for easy access
-#                   from outer Android/Termux if needed.
+#                4. Copies the launcher scripts to /sdcard/Download for easy
+#                   access from outer Android/Termux.
 #
 # Usage:
 #   ./scripts/install-autostart.sh
@@ -24,8 +25,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCHER_SCRIPT="${SCRIPT_DIR}/launch-ai-tmux.sh"
 BASHRC_FILE="${HOME}/.bashrc"
 
-echo "==> [1/4] Verifying launch-ai-tmux.sh permissions..."
-chmod +x "$LAUNCHER_SCRIPT"
+echo "==> [1/4] Verifying script permissions..."
+chmod +x "${SCRIPT_DIR}"/*.sh
 
 echo "==> [2/4] Checking tmux installation inside Debian..."
 if ! command -v tmux >/dev/null 2>&1; then
@@ -37,7 +38,7 @@ else
     echo "    Found $(tmux -V)"
 fi
 
-echo "==> [3/4] Configuring /usr/local/bin symlinks for CLI tools..."
+echo "==> [3/4] Configuring /usr/local/bin and ~/ symlinks for CLI tools & launchers..."
 # Ensure ~/.local/bin exists and link 'antigravity' -> 'agy'
 mkdir -p "${HOME}/.local/bin"
 if [[ -x "${HOME}/.local/bin/agy" ]]; then
@@ -50,12 +51,17 @@ if [[ -x "${HOME}/.local/bin/codex" ]]; then
     sudo ln -sf "${HOME}/.local/bin/codex" /usr/local/bin/codex
 fi
 
-sudo ln -sf "$LAUNCHER_SCRIPT" /usr/local/bin/launch-ai-tmux.sh
-
-# Optionally export a copy to shared storage (/sdcard/Download) if mounted
-if [[ -d /sdcard/Download ]]; then
-    cp -f "$LAUNCHER_SCRIPT" /sdcard/Download/launch-ai-tmux.sh 2>/dev/null || true
-fi
+for script_name in launch-ai-tmux.sh start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh; do
+    if [[ -f "${SCRIPT_DIR}/${script_name}" ]]; then
+        sudo ln -sf "${SCRIPT_DIR}/${script_name}" "/usr/local/bin/${script_name}"
+        if [[ "$script_name" == start-debian*.sh ]]; then
+            ln -sf "${SCRIPT_DIR}/${script_name}" "${HOME}/${script_name}"
+        fi
+        if [[ -d /sdcard/Download ]]; then
+            cp -f "${SCRIPT_DIR}/${script_name}" "/sdcard/Download/${script_name}" 2>/dev/null || true
+        fi
+    fi
+done
 
 echo "==> [4/4] Ensuring auto-launch hook is present in ${BASHRC_FILE}..."
 MARKER="# Auto-launch 3-pane AI workspace (Antigravity, Codex, Jules) on interactive Debian login"
@@ -81,21 +87,24 @@ cat <<'EOF'
 ================================================================================
 Installation Complete!
 ================================================================================
-What happens now:
-  - Whenever ~/start-debian.sh runs in Termux, Debian's ~/.bashrc automatically
-    launches (or attaches to) the 3-pane 'ai' tmux workspace:
-      * Portrait orientation:  Stacks sessions vertically on top of each other
-                               (even-vertical: Top, Middle, Bottom).
-      * Landscape orientation: Arranges sessions side-by-side in equal columns
-                               (even-horizontal: Left, Middle, Right).
-      * Rotating your device automatically switches between stacked and
-        side-by-side layouts in real time.
+Available Session Launchers:
+  - ~/start-debian-1.sh  Launches 1 session  (Pane 0: Antigravity)
+  - ~/start-debian-2.sh  Launches 2 sessions (Pane 0: Antigravity, Pane 1: Codex)
+  - ~/start-debian-3.sh  Launches 3 sessions (Pane 0: Antigravity, Pane 1: Codex, Pane 2: Jules)
+  - ~/start-debian.sh    Launches 3 sessions by default (or pass -1, -2, -3)
 
-Optional (Outer Termux Auto-Start):
-  To make opening a new Termux window automatically run ~/start-debian.sh,
-  run this one-liner inside your outer Termux shell (outside Debian):
+Orientation Behavior:
+  - Portrait orientation:  Stacks active sessions vertically on top of each
+                           other (even-vertical: Top to Bottom).
+  - Landscape orientation: Arranges active sessions side-by-side in equal
+                           columns (even-horizontal: Left to Right).
+  - Rotating your device automatically switches between stacked and
+    side-by-side layouts in real time.
 
-    grep -q "start-debian.sh" ~/.bashrc 2>/dev/null || \
-      echo '[ -z "$DEBIAN_STARTED" ] && export DEBIAN_STARTED=1 && exec ~/start-debian.sh' >> ~/.bashrc
+Install Launchers in Outer Termux:
+  Run this inside your outer Termux shell (outside Debian) to copy all
+  start-debian-{1,2,3}.sh scripts into your Termux home directory:
+
+    cp ~/.andronix/distros/debian/rootfs/home/b/toolz/scripts/start-debian*.sh ~/ && chmod +x ~/start-debian*.sh
 ================================================================================
 EOF
