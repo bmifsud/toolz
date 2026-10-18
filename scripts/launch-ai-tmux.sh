@@ -208,17 +208,17 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
     # Pane 0 (Top in portrait / Left in landscape): Antigravity CLI (agy)
     # After agy exits, 'exec bash -i' keeps the pane open at an interactive prompt.
     tmux new-session -d -s "$SESSION" -n "$WINDOW" -c "$WORKDIR" -x "$INIT_COLS" -y "$INIT_ROWS" \
-        "export PATH=\"\$HOME/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Antigravity\033\\'; agy; exec bash -i"
+        "export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Antigravity\033\\'; agy; exec bash -i"
 
     # Pane 1 (Middle): Codex CLI
     # NOTE: '--no-daemon' is required inside Andronix proot to bypass Unix domain
     # socket connection errors with the background app-server daemon.
     tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" \
-        "export PATH=\"\$HOME/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Codex\033\\'; codex --no-daemon; exec bash -i"
+        "export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Codex\033\\'; codex --no-daemon; exec bash -i"
 
     # Pane 2 (Bottom in portrait / Right in landscape): Google Jules CLI
     tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" \
-        "export PATH=\"\$HOME/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Jules\033\\'; jules; exec bash -i"
+        "export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Jules\033\\'; jules; exec bash -i"
 
     # Focus Pane 0 (Antigravity) by default.
     tmux select-pane -t "${SESSION}:${WINDOW}.0"
@@ -232,12 +232,14 @@ fi
 tmux set-option -t "$SESSION" -g mouse on
 
 # Display a distinct header bar at the top of each pane showing its index,
-# agent title, and active command.
+# agent title, and active command. Lock pane titles (allow-set-title off) so
+# child CLIs cannot overwrite "Antigravity", "Codex", or "Jules".
 tmux set-option -t "$SESSION" -g pane-border-status top
 tmux set-option -t "$SESSION" -g pane-border-format " #[bold]#{pane_index}: #{pane_title} (#{pane_current_command}) "
 tmux select-pane -t "${SESSION}:${WINDOW}.0" -T "Antigravity" 2>/dev/null || true
 tmux select-pane -t "${SESSION}:${WINDOW}.1" -T "Codex" 2>/dev/null || true
 tmux select-pane -t "${SESSION}:${WINDOW}.2" -T "Jules" 2>/dev/null || true
+tmux set-option -w -t "${SESSION}:${WINDOW}" allow-set-title off 2>/dev/null || true
 
 # Configure orientation hooks so rotating the device (or attaching from a new
 # viewport) automatically stacks panes in portrait (even-vertical) or places

@@ -75,6 +75,7 @@ flowchart LR
 | :--- | :--- |
 | [`scripts/launch-ai-tmux.sh`](scripts/launch-ai-tmux.sh) | Core launcher script that detects outer Termux vs. Debian `proot`, creates the 3-pane `tmux` session (`ai`), detects portrait (`even-vertical`) vs. landscape (`even-horizontal`) orientation, registers dynamic resize hooks, enables touch/mouse mode, and launches `agy`, `codex --no-daemon`, and `jules`. |
 | [`scripts/install-autostart.sh`](scripts/install-autostart.sh) | Idempotent setup script that installs `tmux`, configures `/usr/local/bin` symlinks (`agy`, `antigravity`, `codex`, `launch-ai-tmux.sh`), and registers the auto-launch hook in `~/.bashrc`. |
+| [`tests/test-launch-ai-tmux.sh`](tests/test-launch-ai-tmux.sh) | Automated integration and unit test suite verifying portrait vertical stacking, landscape side-by-side columns, dynamic rotation hooks, Android soft-keyboard resilience, and zoom preservation. |
 | [`docs/Home.md`](docs/Home.md) | Wiki home page and documentation index. |
 | [`docs/Installation-and-Setup.md`](docs/Installation-and-Setup.md) | Complete step-by-step installation guide for both Debian and outer Termux. |
 | [`docs/Architecture-and-How-It-Works.md`](docs/Architecture-and-How-It-Works.md) | Technical deep-dive into `proot` process management, `codex --no-daemon`, portrait/landscape detection, and `tmux` geometry hooks. |
