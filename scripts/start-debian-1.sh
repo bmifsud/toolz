@@ -6,7 +6,8 @@
 #              workspace running:
 #                - Pane 0: Antigravity CLI (agy)
 #
-# Works from both Outer Termux and Inside Debian (proot).
+# Works from Termux:Widget (~/.shortcut / ~/.shortcuts), Outer Termux, and
+# Inside Debian (proot).
 # Usage:
 #   ./start-debian-1.sh [--portrait | --landscape | --auto] [--no-attach]
 # ==============================================================================
@@ -15,9 +16,12 @@ set -euo pipefail
 
 export AI_SESSION_COUNT=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOTFS_SCRIPTS="${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}/home/b/toolz/scripts"
 
 if [[ -x "${SCRIPT_DIR}/start-debian.sh" ]]; then
     exec "${SCRIPT_DIR}/start-debian.sh" --sessions 1 "$@"
+elif [[ -x "${ROOTFS_SCRIPTS}/start-debian.sh" ]]; then
+    exec "${ROOTFS_SCRIPTS}/start-debian.sh" --sessions 1 "$@"
 elif [[ -x "$HOME/toolz/scripts/start-debian.sh" ]]; then
     exec "$HOME/toolz/scripts/start-debian.sh" --sessions 1 "$@"
 elif command -v start-debian.sh >/dev/null 2>&1; then

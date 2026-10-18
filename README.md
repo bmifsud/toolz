@@ -85,9 +85,10 @@ flowchart LR
 | [`scripts/start-debian-2.sh`](scripts/start-debian-2.sh) | Launches Debian and opens **2 AI sessions** (`Pane 0: Antigravity`, `Pane 1: Codex`), stacked in portrait or side-by-side in landscape. |
 | [`scripts/start-debian-3.sh`](scripts/start-debian-3.sh) | Launches Debian and opens **3 AI sessions** (`Pane 0: Antigravity`, `Pane 1: Codex`, `Pane 2: Jules`), stacked in portrait or side-by-side in landscape. |
 | [`scripts/start-debian.sh`](scripts/start-debian.sh) | Unified Andronix Debian + AI workspace launcher supporting `--sessions 1\|2\|3` (`-1`, `-2`, `-3`), defaulting to 3 sessions. |
+| [`.shortcut/`](.shortcut) & [`.shortcuts/`](.shortcuts) | Pre-built Termux shortcut directories containing `start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, and `start-debian.sh` for `~/.shortcut` / `~/.shortcuts` (Termux:Widget). |
 | [`scripts/launch-ai-tmux.sh`](scripts/launch-ai-tmux.sh) | Core `tmux` workspace manager that creates or dynamically scales `ai:AI-Workspace` between 1, 2, or 3 panes, detects portrait (`even-vertical`) vs. landscape (`even-horizontal`) orientation, and registers dynamic resize hooks. |
-| [`scripts/install-autostart.sh`](scripts/install-autostart.sh) | Idempotent setup script that installs `tmux`, configures `/usr/local/bin` and `~/` symlinks (`start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, `start-debian.sh`, `launch-ai-tmux.sh`), exports scripts to `/sdcard/Download`, and registers the auto-launch hook in `~/.bashrc`. |
-| [`tests/test-launch-ai-tmux.sh`](tests/test-launch-ai-tmux.sh) | Automated integration and unit test suite verifying 1-, 2-, and 3-session launchers, dynamic scaling, portrait vertical stacking, landscape side-by-side columns, rotation hooks, and zoom preservation. |
+| [`scripts/install-autostart.sh`](scripts/install-autostart.sh) | Idempotent setup script that installs `tmux`, configures `/usr/local/bin` and `~/` symlinks, populates `~/.shortcut/` and `~/.shortcuts/`, exports scripts to `/sdcard/Download`, and registers the auto-launch hook in `~/.bashrc`. |
+| [`tests/test-launch-ai-tmux.sh`](tests/test-launch-ai-tmux.sh) | Automated integration and unit test suite verifying 1-, 2-, and 3-session launchers, `.shortcut` scripts, dynamic scaling, portrait vertical stacking, landscape side-by-side columns, rotation hooks, and zoom preservation. |
 | [`docs/Home.md`](docs/Home.md) | Wiki home page and documentation index. |
 | [`docs/Installation-and-Setup.md`](docs/Installation-and-Setup.md) | Complete step-by-step installation guide for both Debian and outer Termux. |
 | [`docs/Architecture-and-How-It-Works.md`](docs/Architecture-and-How-It-Works.md) | Technical deep-dive into `proot` process management, `codex --no-daemon`, portrait/landscape detection, and `tmux` geometry hooks. |
@@ -111,15 +112,16 @@ chmod +x scripts/*.sh
 
 What `install-autostart.sh` does automatically:
 - Repairs any interrupted `dpkg` state and installs `tmux` if not already installed.
-- Creates global symlinks in `/usr/local/bin` and `~/` (`start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, `start-debian.sh`, `launch-ai-tmux.sh`, `agy`, `antigravity`, `codex`) and copies the launchers to `/sdcard/Download`.
+- Creates global symlinks in `/usr/local/bin` and `~/` (`start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, `start-debian.sh`, `launch-ai-tmux.sh`, `agy`, `antigravity`, `codex`).
+- Populates `~/.shortcut/`, `~/.shortcuts/`, `/sdcard/Download/.shortcut/`, and `/sdcard/Download/.shortcuts/` with `start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, and `start-debian.sh`.
 - Adds a loop-guarded auto-launch block to `~/.bashrc` so entering Debian automatically opens the AI workspace.
 
-### 2. Install `start-debian-{1,2,3}.sh` in Outer Termux
+### 2. Install `start-debian-{1,2,3}.sh` into Outer Termux (`~/.shortcut` & `~/`)
 
-Run this one-liner inside your **outer Termux shell** (outside Debian) to copy `start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, and `start-debian.sh` into your Termux home directory (`~/`):
+Run this command inside your **outer Termux shell** (outside Debian) to install `start-debian-1.sh`, `start-debian-2.sh`, `start-debian-3.sh`, and `start-debian.sh` into Termux's `~/`, `~/.shortcut/`, and `~/.shortcuts/` directories:
 
 ```bash
-cp ~/.andronix/distros/debian/rootfs/home/b/toolz/scripts/start-debian*.sh ~/ && chmod +x ~/start-debian*.sh
+~/.andronix/distros/debian/rootfs/home/b/toolz/scripts/install-autostart.sh
 ```
 
 Now from outer Termux (or inside Debian) you can launch 1, 2, or 3 sessions directly:

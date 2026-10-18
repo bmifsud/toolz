@@ -303,6 +303,19 @@ BORDER_STATUS="$(tmux show-options -t "$TEST_SESSION" -gv pane-border-status)"
 assert_eq "$MOUSE_OPT" "on" "tmux mouse mode is enabled"
 assert_eq "$BORDER_STATUS" "top" "tmux pane-border-status is set to top"
 
+# ------------------------------------------------------------------------------
+# Test 10: .shortcut and .shortcuts Directory Scripts
+# ------------------------------------------------------------------------------
+echo "==> Test 10: .shortcut and .shortcuts scripts"
+for sc_dir in "${REPO_ROOT}/.shortcut" "${REPO_ROOT}/.shortcuts"; do
+    dir_name="$(basename "$sc_dir")"
+    assert_true "[[ -d '$sc_dir' ]]" "${dir_name}/ directory exists in repository"
+    for sc_name in start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh; do
+        assert_true "bash -n '${sc_dir}/${sc_name}'" "${dir_name}/${sc_name} has valid bash syntax"
+        assert_true "[[ -x '${sc_dir}/${sc_name}' ]]" "${dir_name}/${sc_name} is executable"
+    done
+done
+
 echo "================================================================================"
 printf "Test Summary: %d passed, %d failed\n" "$PASSED" "$FAILED"
 echo "================================================================================"

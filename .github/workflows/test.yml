@@ -20,5 +20,5 @@ jobs:
 
       - name: Run automated test suite
         run: |
-          chmod +x scripts/*.sh tests/*.sh
+          chmod +x scripts/*.sh .shortcut/*.sh .shortcuts/*.sh tests/*.sh
           ./tests/test-launch-ai-tmux.sh

@@ -128,6 +128,20 @@ if [[ -d "$DEBIAN_HOME" ]]; then
     if [[ -n "$ORIENTATION_OVERRIDE" ]]; then
         echo "$ORIENTATION_OVERRIDE" > "${DEBIAN_HOME}/.ai_orientation" 2>/dev/null || true
     fi
+
+    # Automatically populate ~/.shortcut and ~/.shortcuts in outer Termux
+    if [[ -d "${DEBIAN_HOME}/toolz/scripts" ]]; then
+        for sc_dir in "${HOME}/.shortcut" "${HOME}/.shortcuts"; do
+            mkdir -p "$sc_dir" 2>/dev/null || true
+            chmod 700 "$sc_dir" 2>/dev/null || true
+            for sc_file in start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh; do
+                if [[ -f "${DEBIAN_HOME}/toolz/scripts/${sc_file}" ]]; then
+                    cp -f "${DEBIAN_HOME}/toolz/scripts/${sc_file}" "${sc_dir}/${sc_file}" 2>/dev/null || true
+                    chmod +x "${sc_dir}/${sc_file}" 2>/dev/null || true
+                fi
+            done
+        done
+    fi
 fi
 
 # If a custom DEBIAN_LAUNCHER is explicitly provided (and is not this script itself), run it.
