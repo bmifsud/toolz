@@ -59,3 +59,41 @@ chmod +x ~/backup_cline_omniroute.sh
   ```bash
   ~/backup_cline_omniroute.sh --restore-gdrive /path/to/workspace
   ```
+
+---
+
+## Tier-2 Rootfs Snapshots, Cron Scheduling & Full-Flow Tests
+
+The Tier-1 utility documented above is retained unchanged. Additional development-stage components now live alongside it:
+
+| File | Purpose |
+| --- | --- |
+| [`pre_snapshot_clean.sh`](pre_snapshot_clean.sh) | Runs Tier-1 and prepares Debian for a quiet snapshot |
+| [`snapshot_andronix_debian.sh`](snapshot_andronix_debian.sh) | Creates AES-256 encrypted Classic Andronix rootfs snapshots, optionally uploading to Google Drive; supports guarded restore |
+| [`TIER2_README.md`](TIER2_README.md) | Tier-2 compatibility, manual backup and recovery instructions |
+| [`install_backup_cron.sh`](install_backup_cron.sh) | Adds managed cron entries while preserving unrelated entries |
+| [`run_scheduled_backup.sh`](run_scheduled_backup.sh) | Serialized scheduled runs, logging, decryption/archive checks and remote comparison |
+| [`SCHEDULING.md`](SCHEDULING.md) | Detailed scheduling, prerequisites, environment setup and safety limitations |
+| [`test_full_flow.sh`](test_full_flow.sh) | Shell syntax checks and both isolated Python regression suites |
+| [`tests/test_tier2.py`](tests/test_tier2.py) and [`tests/test_backup_flow.py`](tests/test_backup_flow.py) | Snapshot, restore, scheduling and failure-path tests |
+
+### Planned backup cadence (device local time)
+
+- **Tier-1:** Every day at **09:00 and 21:00**, designed for low-disruption application-state backups.
+- **Tier-2:** **Monday, Wednesday and Friday at 03:00**, only when Debian PRoot is stopped and a fresh readiness marker exists.
+
+### Test commands
+
+```bash
+cd ~/toolz/backup
+bash -n backup_cline_omniroute.sh pre_snapshot_clean.sh snapshot_andronix_debian.sh install_backup_cron.sh run_scheduled_backup.sh
+bash test_full_flow.sh
+```
+
+The GitHub Actions workflow at [`../.github/workflows/backup-regression.yml`](../.github/workflows/backup-regression.yml) runs the regression entrypoint on relevant changes.
+
+### Important deployment limitations
+
+**This is not yet a verified production backup system.** The expanded tests have been committed but their current pass status and 100% code coverage have not been established. Tier-2 cron cannot automatically create a consistent snapshot while an active PRoot development session is running; it skips instead of killing processes. Its preflight readiness marker must be produced following a successful Debian preparation and shutdown. Cron also requires device-specific launcher and credential configuration, and Android power management may prevent scheduled execution.
+
+The current runner checks decryptability, archive readability and cloud size comparison, but **does not prove end-to-end remote cryptographic integrity or recoverability**. Validate the actual device layout and perform a disposable full restore before enabling unattended backups. See [SCHEDULING.md](SCHEDULING.md) for the setup and acceptance checklist.
