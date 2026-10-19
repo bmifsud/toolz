@@ -131,6 +131,15 @@ done
 # Read persisted orientation or session count from ~/.ai_orientation / ~/.ai_session_count if not explicitly passed
 STATE_FILE_SESSIONS="${HOME}/.ai_session_count"
 STATE_FILE_ORIENTATION="${HOME}/.ai_orientation"
+STATE_FILE_PANE0_TITLE="${HOME}/.ai_pane0_title"
+STATE_FILE_PANE0_CMD="${HOME}/.ai_pane0_cmd"
+
+if [[ -z "${AI_PANE0_TITLE:-}" && -f "$STATE_FILE_PANE0_TITLE" ]]; then
+    AI_PANE0_TITLE="$(cat "$STATE_FILE_PANE0_TITLE" 2>/dev/null || true)"
+fi
+if [[ -z "${AI_PANE0_CMD:-}" && -f "$STATE_FILE_PANE0_CMD" ]]; then
+    AI_PANE0_CMD="$(cat "$STATE_FILE_PANE0_CMD" 2>/dev/null || true)"
+fi
 
 if [[ -z "$ORIENTATION_MODE" ]]; then
     if [[ -f "$STATE_FILE_ORIENTATION" ]]; then
@@ -156,6 +165,9 @@ export AI_ORIENTATION="$ORIENTATION_MODE"
 
 if [[ -z "$REQUESTED_SESSIONS" && -f "$STATE_FILE_SESSIONS" ]]; then
     REQUESTED_SESSIONS="$(tr -d '[:space:]' < "$STATE_FILE_SESSIONS" 2>/dev/null || true)"
+    if [[ -n "$REQUESTED_SESSIONS" ]]; then
+        EXPLICIT_SESSIONS=1
+    fi
 fi
 
 if [[ -n "$REQUESTED_SESSIONS" ]]; then
@@ -209,7 +221,11 @@ if ! command -v tmux >/dev/null 2>&1; then
 fi
 
 SESSION="${AI_SESSION_NAME:-ai}"
-WINDOW="AI-Workspace"
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+    WINDOW="$(tmux display-message -t "$SESSION" -p '#{window_name}' 2>/dev/null || echo "AI-Workspace")"
+else
+    WINDOW="AI-Workspace"
+fi
 WORKDIR="${AI_WORKDIR:-$HOME}"
 
 # ------------------------------------------------------------------------------
@@ -220,7 +236,13 @@ WORKDIR="${AI_WORKDIR:-$HOME}"
 detect_terminal_size() {
     local rows="" cols="" tty_size=""
 
-    if tty_size="$(stty size </dev/tty 2>/dev/null)" && [[ -n "$tty_size" ]]; then
+    if [[ -t 0 ]] && tty_size="$(stty size </dev/tty 2>/dev/null)" && [[ -n "$tty_size" ]]; then
+        read -r rows cols <<<"$tty_size"
+    elif [[ -t 1 ]] && tty_size="$(stty size <&1 2>/dev/null)" && [[ -n "$tty_size" ]]; then
+        read -r rows cols <<<"$tty_size"
+    elif [[ -t 2 ]] && tty_size="$(stty size <&2 2>/dev/null)" && [[ -n "$tty_size" ]]; then
+        read -r rows cols <<<"$tty_size"
+    elif tty_size="$(stty size 2>/dev/null)" && [[ -n "$tty_size" ]]; then
         read -r rows cols <<<"$tty_size"
     fi
 
@@ -279,29 +301,41 @@ fi
 # ------------------------------------------------------------------------------
 # Step 4: Create or Scale the Workspace (1, 2, or 3 Sessions)
 # ------------------------------------------------------------------------------
-PANE0_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Antigravity\033\\'; agy; exec bash -i"
-PANE1_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Codex\033\\'; codex --no-daemon; exec bash -i"
-PANE2_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;Jules\033\\'; jules; exec bash -i"
+PANE0_TITLE="${AI_PANE0_TITLE:-Antigravity}"
+PANE0_CMD_VAL="${AI_PANE0_CMD:-agy}"
+PANE0_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;${PANE0_TITLE}\033\\'; ${PANE0_CMD_VAL}; exec bash -i"
 
+PANE1_TITLE="${AI_PANE1_TITLE:-Codex}"
+PANE1_CMD_VAL="${AI_PANE1_CMD:-codex --no-daemon}"
+PANE1_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;${PANE1_TITLE}\033\\'; ${PANE1_CMD_VAL}; exec bash -i"
+
+PANE2_TITLE="${AI_PANE2_TITLE:-Jules}"
+PANE2_CMD_VAL="${AI_PANE2_CMD:-jules}"
+PANE2_CMD="export HOME=\"${HOME}\" PATH=\"${HOME}/.local/bin:/usr/local/bin:\$PATH\"; printf '\033]2;${PANE2_TITLE}\033\\'; ${PANE2_CMD_VAL}; exec bash -i"
+
+SESSION_CREATED=0
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
     TARGET_SESSIONS="${REQUESTED_SESSIONS:-3}"
 
-    # Pane 0 (Top in portrait / Left in landscape): Antigravity CLI (agy)
-    tmux new-session -d -s "$SESSION" -n "$WINDOW" -c "$WORKDIR" -x "$INIT_COLS" -y "$INIT_ROWS" "$PANE0_CMD"
+    # Pane 0 (Top in portrait / Left in landscape)
+    if tmux new-session -d -s "$SESSION" -n "$WINDOW" -c "$WORKDIR" -x "$INIT_COLS" -y "$INIT_ROWS" "$PANE0_CMD" 2>/dev/null; then
+        SESSION_CREATED=1
+        # Pane 1 (Middle / Second): Codex CLI (if 2 or 3 sessions requested)
+        if (( TARGET_SESSIONS >= 2 )); then
+            tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE1_CMD"
+        fi
 
-    # Pane 1 (Middle / Second): Codex CLI (if 2 or 3 sessions requested)
-    if (( TARGET_SESSIONS >= 2 )); then
-        tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE1_CMD"
+        # Pane 2 (Bottom / Right): Google Jules CLI (if 3 sessions requested)
+        if (( TARGET_SESSIONS >= 3 )); then
+            tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE2_CMD"
+        fi
+
+        # Focus Pane 0 by default.
+        tmux select-pane -t "${SESSION}:${WINDOW}.0" 2>/dev/null || true
     fi
+fi
 
-    # Pane 2 (Bottom / Right): Google Jules CLI (if 3 sessions requested)
-    if (( TARGET_SESSIONS >= 3 )); then
-        tmux split-window "$SPLIT_FLAG" -t "${SESSION}:${WINDOW}" -c "$WORKDIR" "$PANE2_CMD"
-    fi
-
-    # Focus Pane 0 (Antigravity) by default.
-    tmux select-pane -t "${SESSION}:${WINDOW}.0"
-elif [[ "$EXPLICIT_SESSIONS" -eq 1 && -n "$REQUESTED_SESSIONS" ]]; then
+if [[ "$SESSION_CREATED" -eq 0 && "$EXPLICIT_SESSIONS" -eq 1 && -n "$REQUESTED_SESSIONS" ]]; then
     # Dynamically scale an existing session to match the requested session count (1, 2, or 3)
     TARGET_SESSIONS="$REQUESTED_SESSIONS"
     # Ensure window is unzoomed before adding/removing panes
@@ -340,12 +374,12 @@ tmux set-option -t "$SESSION" -g pane-border-status top
 tmux set-option -t "$SESSION" -g pane-border-format " #[bold]#{pane_index}: #{pane_title} (#{pane_current_command}) "
 
 ACTIVE_PANES="$(tmux list-panes -t "${SESSION}:${WINDOW}" 2>/dev/null | wc -l | tr -d ' ')"
-tmux select-pane -t "${SESSION}:${WINDOW}.0" -T "Antigravity" 2>/dev/null || true
+tmux select-pane -t "${SESSION}:${WINDOW}.0" -T "$PANE0_TITLE" 2>/dev/null || true
 if (( ACTIVE_PANES >= 2 )); then
-    tmux select-pane -t "${SESSION}:${WINDOW}.1" -T "Codex" 2>/dev/null || true
+    tmux select-pane -t "${SESSION}:${WINDOW}.1" -T "$PANE1_TITLE" 2>/dev/null || true
 fi
 if (( ACTIVE_PANES >= 3 )); then
-    tmux select-pane -t "${SESSION}:${WINDOW}.2" -T "Jules" 2>/dev/null || true
+    tmux select-pane -t "${SESSION}:${WINDOW}.2" -T "$PANE2_TITLE" 2>/dev/null || true
 fi
 tmux set-option -w -t "${SESSION}:${WINDOW}" allow-set-title off 2>/dev/null || true
 

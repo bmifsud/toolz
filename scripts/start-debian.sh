@@ -128,13 +128,19 @@ if [[ -d "$DEBIAN_HOME" ]]; then
     if [[ -n "$ORIENTATION_OVERRIDE" ]]; then
         echo "$ORIENTATION_OVERRIDE" > "${DEBIAN_HOME}/.ai_orientation" 2>/dev/null || true
     fi
+    if [[ -n "${AI_PANE0_TITLE:-}" ]]; then
+        echo "$AI_PANE0_TITLE" > "${DEBIAN_HOME}/.ai_pane0_title" 2>/dev/null || true
+    fi
+    if [[ -n "${AI_PANE0_CMD:-}" ]]; then
+        echo "$AI_PANE0_CMD" > "${DEBIAN_HOME}/.ai_pane0_cmd" 2>/dev/null || true
+    fi
 
     # Automatically populate ~/.shortcut and ~/.shortcuts in outer Termux
     if [[ -d "${DEBIAN_HOME}/toolz/scripts" ]]; then
         for sc_dir in "${HOME}/.shortcut" "${HOME}/.shortcuts"; do
             mkdir -p "$sc_dir" 2>/dev/null || true
             chmod 700 "$sc_dir" 2>/dev/null || true
-            for sc_file in start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh; do
+            for sc_file in start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh start-cline-1.sh start-cline-2.sh start-cline-3.sh; do
                 if [[ -f "${DEBIAN_HOME}/toolz/scripts/${sc_file}" ]]; then
                     cp -f "${DEBIAN_HOME}/toolz/scripts/${sc_file}" "${sc_dir}/${sc_file}" 2>/dev/null || true
                     chmod +x "${sc_dir}/${sc_file}" 2>/dev/null || true
@@ -194,19 +200,27 @@ PROOT_ARGS=(
 [[ -e "${SYSDATA_DIR}/empty" ]] && PROOT_ARGS+=(-b "${SYSDATA_DIR}/empty:/sys/fs/selinux")
 [[ -d /storage/emulated/0 ]] && PROOT_ARGS+=(-b /storage/emulated/0:/sdcard)
 
-exec "$PROOT_BIN" "${PROOT_ARGS[@]}" /usr/bin/env -i \
-    "HOME=/home/${DEBIAN_USER}" \
-    "USER=${DEBIAN_USER}" \
-    "LOGNAME=${DEBIAN_USER}" \
-    "SHELL=/bin/bash" \
-    "TERM=${TERM:-xterm-256color}" \
-    "LANG=C.UTF-8" \
-    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games" \
-    "PULSE_SERVER=127.0.0.1" \
-    "TMPDIR=/tmp" \
-    "ANDRONIX_DISTRO=debian" \
-    "LIBGL_DRI3_DISABLE=1" \
-    "COLORTERM=${COLORTERM:-truecolor}" \
-    "AI_SESSION_COUNT=${SESSION_COUNT}" \
-    "AI_ORIENTATION=${ORIENTATION_OVERRIDE:-auto}" \
-    /bin/bash -l
+PROOT_ENV=(
+    "HOME=/home/${DEBIAN_USER}"
+    "USER=${DEBIAN_USER}"
+    "LOGNAME=${DEBIAN_USER}"
+    "SHELL=/bin/bash"
+    "TERM=${TERM:-xterm-256color}"
+    "LANG=C.UTF-8"
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games"
+    "PULSE_SERVER=127.0.0.1"
+    "TMPDIR=/tmp"
+    "ANDRONIX_DISTRO=debian"
+    "LIBGL_DRI3_DISABLE=1"
+    "COLORTERM=${COLORTERM:-truecolor}"
+    "AI_SESSION_COUNT=${SESSION_COUNT}"
+    "AI_ORIENTATION=${ORIENTATION_OVERRIDE:-auto}"
+)
+[[ -n "${AI_PANE0_TITLE:-}" ]] && PROOT_ENV+=("AI_PANE0_TITLE=${AI_PANE0_TITLE}")
+[[ -n "${AI_PANE0_CMD:-}" ]] && PROOT_ENV+=("AI_PANE0_CMD=${AI_PANE0_CMD}")
+[[ -n "${AI_PANE1_TITLE:-}" ]] && PROOT_ENV+=("AI_PANE1_TITLE=${AI_PANE1_TITLE}")
+[[ -n "${AI_PANE1_CMD:-}" ]] && PROOT_ENV+=("AI_PANE1_CMD=${AI_PANE1_CMD}")
+[[ -n "${AI_PANE2_TITLE:-}" ]] && PROOT_ENV+=("AI_PANE2_TITLE=${AI_PANE2_TITLE}")
+[[ -n "${AI_PANE2_CMD:-}" ]] && PROOT_ENV+=("AI_PANE2_CMD=${AI_PANE2_CMD}")
+
+exec "$PROOT_BIN" "${PROOT_ARGS[@]}" /usr/bin/env -i "${PROOT_ENV[@]}" /bin/bash -l
