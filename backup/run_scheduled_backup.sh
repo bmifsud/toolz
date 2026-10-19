@@ -4,13 +4,20 @@ umask 077
 MODE="${1:-}"
 [[ "$MODE" == tier1 || "$MODE" == tier2 ]] || { echo 'Usage: run_scheduled_backup.sh tier1|tier2' >&2; exit 2; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Restricted Termux-only configuration; cron does not inherit shell exports.
+CONFIG="${BACKUP_CONFIG_FILE:-$HOME/.config/toolz-backup/config}"
+if [[ -f "$CONFIG" ]]; then
+  [[ ! -L "$CONFIG" && "$(stat -c %a "$CONFIG")" == 600 ]] || { echo "Config must be a regular chmod 600 file" >&2; exit 1; }
+  source "$CONFIG"
+fi
+export ROOTFS_DIR="${ROOTFS_DIR:-${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}}"
+export START_SCRIPT="${START_SCRIPT:-$HOME/start-debian.sh}"
 STATE="$HOME/.local/state/toolz-backup"; mkdir -p "$STATE"
 exec 9>"$STATE/backup.lock"
 flock -n 9 || { echo 'Another backup is running; skipping'; exit 75; }
 LOG="$STATE/$MODE-$(date +%Y%m%d_%H%M%S).log"
 exec >>"$LOG" 2>&1
 echo "BEGIN $MODE $(date -Is)"
-: "${TIER1_COMMAND:?Set TIER1_COMMAND to a tested Debian launcher command that executes Tier-1 backup, then exits}"
 : "${BACKUP_PASSPHRASE_FILE:?Set BACKUP_PASSPHRASE_FILE to protected file containing GPG password}"
 [[ -r "$BACKUP_PASSPHRASE_FILE" ]] || { echo 'Passphrase file not readable' >&2; exit 1; }
 command -v rclone >/dev/null || exit 1
@@ -20,7 +27,11 @@ verify(){
  gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --decrypt "$file" 2>/dev/null | tar -tzf - >/dev/null
  name="$(basename "$file")"
  # rclone check uses checksums when supported, otherwise sizes; stronger than just listing.
- rclone check "$file" "$remote/$name" --one-way --size-only
+ # Full streamed SHA-256 comparison (not just matching file size).
+ local localhash remotehash
+ localhash="$(sha256sum "$file" | cut -d\x27 \x27 -f1)"
+ remotehash="$(rclone cat "$remote/$name" | sha256sum | cut -d\x27 \x27 -f1)"
+ [[ "$localhash" == "$remotehash" ]] || { echo "Remote SHA-256 mismatch: $name" >&2; return 1; }
  echo "VERIFIED: $name"
 }
 if [[ "$MODE" == tier1 ]]; then
@@ -28,7 +39,11 @@ if [[ "$MODE" == tier1 ]]; then
  export BACKUP_PASSPHRASE="$(cat "$BACKUP_PASSPHRASE_FILE")"
  [[ -n "$BACKUP_PASSPHRASE" ]] || exit 1
  # TIER1_COMMAND is user configured because Andronix launcher paths differ.
- bash -lc "$TIER1_COMMAND"
+ if [[ -n "${TIER1_COMMAND:-}" ]]; then
+   bash -lc "$TIER1_COMMAND"
+ else
+   "$HERE/run_debian_noninteractive.sh" "/home/${DEBIAN_USER:-b}/toolz/backup/backup_cline_omniroute.sh" backup "/home/${DEBIAN_USER:-b}/toolz"
+ fi
  unset BACKUP_PASSPHRASE
  localdir="${TIER1_LOCAL_DIR:-/sdcard/ClineOmniRouteBackups}"
  latest="$(find "$localdir" -maxdepth 1 -type f -name 'cline_omniroute_backup_*.tar.gz.gpg' | LC_ALL=C sort | tail -1)"
