@@ -40,6 +40,7 @@ echo "BEGIN $MODE $(date -Is)"
 : "${BACKUP_PASSPHRASE_FILE:?Set BACKUP_PASSPHRASE_FILE to protected file containing GPG password}"
 [[ -r "$BACKUP_PASSPHRASE_FILE" ]] || { echo 'Passphrase file not readable' >&2; exit 1; }
 command -v rclone >/dev/null || exit 1
+command -v gzip >/dev/null || { echo "Missing gzip: run pkg install gzip" >&2; exit 1; }
 verify(){
  local file="$1" remote="$2" dir name
  [[ -s "$file" ]] || { echo "Missing backup: $file" >&2; return 1; }
