@@ -97,3 +97,82 @@ The GitHub Actions workflow at [`../.github/workflows/backup-regression.yml`](..
 **This is not yet a verified production backup system.** The expanded tests have been committed but their current pass status and 100% code coverage have not been established. Tier-2 cron cannot automatically create a consistent snapshot while an active PRoot development session is running; it skips instead of killing processes. Its preflight readiness marker must be produced following a successful Debian preparation and shutdown. Cron also requires device-specific launcher and credential configuration, and Android power management may prevent scheduled execution.
 
 The current runner checks decryptability, archive readability and cloud size comparison, but **does not prove end-to-end remote cryptographic integrity or recoverability**. Validate the actual device layout and perform a disposable full restore before enabling unattended backups. See [SCHEDULING.md](SCHEDULING.md) for the setup and acceptance checklist.
+
+---
+
+## Where to Run Each Backup Script
+
+The workflow spans **two separate environments**: the **Andronix Debian shell** (where OmniRoute/Cline run) and the **outer Termux host** (which owns the Debian rootfs and cron daemon). The two environments may have different `$HOME` directories and independent `~/toolz` clones.
+
+| Script | Run in | Purpose |
+| --- | --- | --- |
+| `backup_cline_omniroute.sh` | Andronix Debian | Existing Tier-1 hot application-state backup |
+| `pre_snapshot_clean.sh` | Andronix Debian | Tier-1 backup, OmniRoute checks and preparation before a rootfs snapshot |
+| `snapshot_andronix_debian.sh` | Outer Termux host | Tier-2 encrypted rootfs snapshot/upload or guarded restore |
+| `install_backup_cron.sh` | Outer Termux host | Install the managed cron entries |
+| `run_scheduled_backup.sh` | Outer Termux host | Scheduled Tier-1/Tier-2 orchestration and verification |
+| `test_full_flow.sh` | Compatible Linux test environment (Debian is suitable) | Isolated regression tests; not a real-device acceptance test |
+
+### Step 1 — In Andronix Debian
+
+Use the Debian terminal where your application state resides:
+
+```bash
+cd ~/toolz
+git pull --ff-only origin main
+cd backup
+
+# Regression suite: run before relying on new backup code
+bash test_full_flow.sh
+
+# Prepare for a manual Tier-2 snapshot
+bash pre_snapshot_clean.sh ~/toolz
+```
+
+The pre-snapshot step calls the existing Tier-1 backup script and checks SQLite/OmniRoute. **Do not run the full rootfs snapshot while Debian PRoot is still active.** Exit every Debian session, including tmux/VNC-related sessions, before the Termux snapshot.
+
+### Step 2 — In the outer Termux host
+
+Return to the original Termux prompt (outside Debian). Ensure the repository scripts are available in the **Termux filesystem**: `~/toolz/backup` here is **not necessarily** the same location as Debian's `~/toolz/backup`. If the repository is not present in Termux, clone it there or use a confirmed Termux-accessible path.
+
+```bash
+pkg install cronie gnupg tar rclone python coreutils util-linux
+
+cd ~/toolz/backup
+git pull --ff-only origin main
+
+# Inspect and syntax-check before scheduling
+bash -n install_backup_cron.sh run_scheduled_backup.sh snapshot_andronix_debian.sh
+```
+
+For a **manual** Tier-2 snapshot after Debian has exited and prerequisites are configured:
+
+```bash
+bash snapshot_andronix_debian.sh --gdrive
+```
+
+The Tier-2 script currently expects the Classic Andronix `~/debian-fs` and `~/start-debian.sh` layout, unless the relevant environment variables are set. Check these paths against your actual installation first.
+
+### Step 3 — Install cron only after configuring and validating it
+
+The scheduler requires a **tested** Debian launcher command (`TIER1_COMMAND`), a protected `BACKUP_PASSPHRASE_FILE`, a working `gdrive:` rclone remote, and a Termux-accessible repository path. Cron does **not** automatically inherit variables exported in an interactive shell; see [SCHEDULING.md](SCHEDULING.md) for environment setup, readiness markers and the Tier-2 safety gate.
+
+After completing those checks:
+
+```bash
+cd ~/toolz/backup
+bash install_backup_cron.sh
+crond
+crontab -l
+```
+
+The installed schedule uses the **device's local time**:
+
+| Tier | Schedule |
+| --- | --- |
+| Tier-1 | Daily at **09:00 and 21:00** |
+| Tier-2 | **Monday, Wednesday, Friday at 03:00** |
+
+**Current limitations:** Tier-2 is not fully unattended; it skips if Debian is active or a fresh preflight readiness marker is missing. Android battery restrictions or Termux shutdown can prevent cron from running. The expanded test suite has not been confirmed passing with 100% measured coverage, and a disposable full restore is still required before treating this as production-ready.
+
+See also [TIER2_README.md](TIER2_README.md), [SCHEDULING.md](SCHEDULING.md) and [test_full_flow.sh](test_full_flow.sh).
