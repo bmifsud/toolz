@@ -30,7 +30,7 @@ with tarfile.open(p,'r:gz') as tar:
  if not names: raise SystemExit('Empty archive')
  for m in names:
   path=pathlib.PurePosixPath(m.name)
-  if path.is_absolute() or '..' in path.parts or not (m.name=='start-debian.sh' or m.name.startswith('.andronix/distros/debian/rootfs/')):
+  if path.is_absolute() or '..' in path.parts or not (m.name=='start-debian.sh' or m.name.rstrip('/') in ('.andronix','.andronix/distros','.andronix/distros/debian','.andronix/distros/debian/rootfs') or m.name.startswith('.andronix/distros/debian/rootfs/')):
    raise SystemExit('Unsafe archive member: '+m.name)
   if m.issym() or m.islnk() or m.isdev() or m.isfifo():
    raise SystemExit('Unsupported special member: '+m.name)
