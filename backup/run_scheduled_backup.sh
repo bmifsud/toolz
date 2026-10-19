@@ -29,8 +29,8 @@ verify(){
  # rclone check uses checksums when supported, otherwise sizes; stronger than just listing.
  # Full streamed SHA-256 comparison (not just matching file size).
  local localhash remotehash
- localhash="$(sha256sum "$file" | cut -d\x27 \x27 -f1)"
- remotehash="$(rclone cat "$remote/$name" | sha256sum | cut -d\x27 \x27 -f1)"
+ localhash="$(sha256sum "$file" | awk '{print $1}')"
+ remotehash="$(rclone cat "$remote/$name" | sha256sum | awk '{print $1}')"
  [[ "$localhash" == "$remotehash" ]] || { echo "Remote SHA-256 mismatch: $name" >&2; return 1; }
  echo "VERIFIED: $name"
 }
