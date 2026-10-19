@@ -28,9 +28,13 @@ START_DEBIAN="${REPO_ROOT}/scripts/start-debian.sh"
 START_DEBIAN_1="${REPO_ROOT}/scripts/start-debian-1.sh"
 START_DEBIAN_2="${REPO_ROOT}/scripts/start-debian-2.sh"
 START_DEBIAN_3="${REPO_ROOT}/scripts/start-debian-3.sh"
+START_CLINE_1="${REPO_ROOT}/scripts/start-cline-1.sh"
+START_CLINE_2="${REPO_ROOT}/scripts/start-cline-2.sh"
+START_CLINE_3="${REPO_ROOT}/scripts/start-cline-3.sh"
 
 TEST_SESSION="ai-test-$$"
 TEST_TMPDIR="$(mktemp -d "/tmp/toolz-test.XXXXXX")"
+export TMUX_TMPDIR="$TEST_TMPDIR"
 TEST_HOME="${TEST_TMPDIR}/home"
 TEST_WORKDIR="${TEST_TMPDIR}/workspace"
 
@@ -111,7 +115,7 @@ echo "==========================================================================
 # Test 1: Script Syntax & Permissions
 # ------------------------------------------------------------------------------
 echo "==> Test 1: Script syntax and executable permissions"
-for s in "$LAUNCHER" "$INSTALLER" "$START_DEBIAN" "$START_DEBIAN_1" "$START_DEBIAN_2" "$START_DEBIAN_3"; do
+for s in "$LAUNCHER" "$INSTALLER" "$START_DEBIAN" "$START_DEBIAN_1" "$START_DEBIAN_2" "$START_DEBIAN_3" "$START_CLINE_1" "$START_CLINE_2" "$START_CLINE_3"; do
     sname="$(basename "$s")"
     assert_true "bash -n '$s'" "scripts/${sname} has valid bash syntax"
     assert_true "[[ -x '$s' ]]" "scripts/${sname} is executable"
@@ -205,9 +209,9 @@ read -r P0_TITLE P0_W P0_H P0_L P0_T <<<"$(tmux list-panes -t "${TEST_SESSION}:A
 read -r P1_TITLE P1_W P1_H P1_L P1_T <<<"$(tmux list-panes -t "${TEST_SESSION}:AI-Workspace" -F '#{pane_title} #{pane_width} #{pane_height} #{pane_left} #{pane_top}' | sed -n '2p')"
 read -r P2_TITLE P2_W P2_H P2_L P2_T <<<"$(tmux list-panes -t "${TEST_SESSION}:AI-Workspace" -F '#{pane_title} #{pane_width} #{pane_height} #{pane_left} #{pane_top}' | sed -n '3p')"
 
-assert_eq "$P0_TITLE" "Antigravity" "3-session Pane 0 title is Antigravity"
-assert_eq "$P1_TITLE" "Codex" "3-session Pane 1 title is Codex"
-assert_eq "$P2_TITLE" "Jules" "3-session Pane 2 title is Jules"
+assert_eq "$P0_TITLE" "Cline-1" "3-session Pane 0 title is Cline-1"
+assert_eq "$P1_TITLE" "Cline-2" "3-session Pane 1 title is Cline-2"
+assert_eq "$P2_TITLE" "Cline-3" "3-session Pane 2 title is Cline-3"
 
 assert_true "(( P0_L == 0 && P1_L == 0 && P2_L == 0 ))" "3-session Portrait mode: all 3 panes align at left edge (pane_left == 0)"
 assert_true "(( P0_W == P1_W && P1_W == P2_W ))" "3-session Portrait mode: all 3 panes span the full terminal width equally"
@@ -310,7 +314,7 @@ echo "==> Test 10: .shortcut and .shortcuts scripts"
 for sc_dir in "${REPO_ROOT}/.shortcut" "${REPO_ROOT}/.shortcuts"; do
     dir_name="$(basename "$sc_dir")"
     assert_true "[[ -d '$sc_dir' ]]" "${dir_name}/ directory exists in repository"
-    for sc_name in start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh; do
+    for sc_name in start-debian.sh start-debian-1.sh start-debian-2.sh start-debian-3.sh start-cline-1.sh start-cline-2.sh start-cline-3.sh; do
         assert_true "bash -n '${sc_dir}/${sc_name}'" "${dir_name}/${sc_name} has valid bash syntax"
         assert_true "[[ -x '${sc_dir}/${sc_name}' ]]" "${dir_name}/${sc_name} is executable"
     done
