@@ -40,6 +40,38 @@ The repository launcher uses a configurable `ANDRONIX_ROOTFS` (default `~/.andro
 
 For unattended Tier-1, a separate **tested noninteractive PRoot command wrapper** is still required. It must use the same rootfs/bind mounts and Debian user as `start-debian.sh`, bypass the tmux auto-launch, invoke the Tier-1 script once, propagate its exit code, and terminate. The cron runner's `TIER1_COMMAND` should then point to that wrapper. No automatic launcher wrapper has yet been validated against your device.
 
+
+## Noninteractive launcher implementation
+
+The new [`run_debian_noninteractive.sh`](run_debian_noninteractive.sh) uses the same PRoot rootfs location, Debian user, bind mounts and command environment as the repository's interactive `start-debian.sh`, but runs a single command using `bash --noprofile --norc` and exits. The scheduler uses it by default for Tier-1, executing `/home/b/toolz/backup/backup_cline_omniroute.sh backup /home/b/toolz`. Override `DEBIAN_USER` or `TIER1_COMMAND` if your paths differ. It never intentionally launches tmux.
+
+**Termux configuration** (after confirming paths and using a unique off-device-recoverable secret):
+
+```bash
+mkdir -p ~/.config/toolz-backup
+chmod 700 ~/.config/toolz-backup
+# Create a protected passphrase file with a secure editor; do not commit it.
+# Example: nano ~/.config/toolz-backup/passphrase
+chmod 600 ~/.config/toolz-backup/passphrase
+cat > ~/.config/toolz-backup/config <<'EOF'
+BACKUP_PASSPHRASE_FILE="$HOME/.config/toolz-backup/passphrase"
+ANDRONIX_ROOTFS="$HOME/.andronix/distros/debian/rootfs"
+ROOTFS_DIR="$ANDRONIX_ROOTFS"
+START_SCRIPT="$HOME/start-debian.sh"
+EOF
+chmod 600 ~/.config/toolz-backup/config
+```
+
+The scheduler sources this file from `$HOME/.config/toolz-backup/config` in both manual and cron runs. It must be mode `600`, not a symlink. **This file is shell code: edit it only yourself, keep it private and never download it from an untrusted source.** Confirm `START_SCRIPT` is a regular file and the rootfs is correct. Test from the Termux host:
+
+```bash
+bash ~/toolz/backup/run_scheduled_backup.sh tier1
+```
+
+Logs are under `~/.local/state/toolz-backup/`. Tier-1 now checks decrypted tar readability and streams the encrypted cloud object through SHA-256 to compare against the local archive. This uses cloud bandwidth proportional to the backup size.
+
+**Caution:** The Tier-2 snapshot script currently requires the rootfs and launcher to be immediate children of Termux `$HOME` and archives using fixed Classic Andronix names. Simply setting `ROOTFS_DIR` to `~/.andronix/distros/debian/rootfs` is **not sufficient** for Tier-2. Keep Tier-2 cron disabled until a matching snapshot/restore layout is implemented and tested; do not try it against your live rootfs. Tier-2 readiness marker and active-PRoot safety restrictions still apply.
+
 ## Tier-2 safety gate
 
 A rootfs snapshot requires all Debian PRoot sessions to have exited. The runner **skips**, rather than kills, an active session. The operator must run `pre_snapshot_clean.sh` in Debian, exit all PRoot sessions, and then create a readiness marker:
