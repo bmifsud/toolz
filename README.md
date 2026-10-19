@@ -216,3 +216,30 @@ For deeper technical details, see the [`docs/`](docs/Home.md) directory:
 - [**Architecture & How It Works**](docs/Architecture-and-How-It-Works.md)
 - [**Usage, Touch Gestures & Shortcuts**](docs/Usage-and-Shortcuts.md)
 - [**Troubleshooting Guide**](docs/Troubleshooting.md)
+
+---
+
+## Encrypted Backups, Scheduling & Recovery
+
+The [`backup/`](backup/) directory contains a two-tier backup implementation for OmniRoute/Cline and Classic Andronix Debian. These backups are **separate from** the tmux/AI workspace launcher.
+
+| Component | Purpose | Documentation |
+| --- | --- | --- |
+| Tier-1 — OmniRoute and Cline | Encrypted application state, SQLite hot backup and Google Drive sync | [Backup README](backup/README.md) |
+| Tier-2 — Classic Andronix Debian | Encrypted rootfs snapshot and recovery (Termux host) | [Tier-2 guide](backup/TIER2_README.md) |
+| Automated scheduling | Tier-1 at 09:00 and 21:00 daily; Tier-2 at 03:00 Monday, Wednesday and Friday | [Scheduling guide](backup/SCHEDULING.md) |
+| Regression testing | Isolated shell syntax, snapshot, encryption, restore and scheduler tests | [Test runner](backup/test_full_flow.sh) |
+
+### Run the backup regression tests
+
+From the repository root, in a compatible Linux environment with Python, pytest, GPG and rclone installed:
+
+```bash
+bash backup/test_full_flow.sh
+```
+
+The [backup regression GitHub Actions workflow](.github/workflows/backup-regression.yml) is configured to run on relevant pushes and pull requests. **The expanded test suite and workflow have not yet been confirmed passing**, and 100% measured code coverage has **not** been established.
+
+### Before enabling unattended cron
+
+Read the [scheduling guide](backup/SCHEDULING.md) and verify the Debian launcher, GPG passphrase-file permissions, `gdrive:` remote, cloud comparison, and disposable restore. Tier-2 currently **skips** if Debian PRoot is active and requires a recent preflight readiness marker; it is **not fully unattended**. Existing Tier-1 scripts remain unchanged. Do not rely on these backups as your only recovery mechanism until real-device acceptance testing succeeds.
