@@ -1,0 +1,26 @@
+name: Backup regression
+on:
+  push:
+    paths:
+      - 'backup/**'
+      - '.github/workflows/backup-regression.yml'
+  pull_request:
+    paths:
+      - 'backup/**'
+      - '.github/workflows/backup-regression.yml'
+jobs:
+  isolated-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg sqlite3 rclone
+          python -m pip install pytest pytest-cov
+      - name: Shell syntax and isolated flow tests
+        run: bash backup/test_full_flow.sh
