@@ -31,6 +31,15 @@ crontab -l
 
 The installer preserves unrelated crontab entries and replaces only its own marked section. Cron will not run reliably if Android kills Termux; configure Termux:Boot and disable aggressive battery restrictions where appropriate. Scheduled tasks missed while the device is asleep/off are not automatically caught up.
 
+
+## Confirmed launcher: `~/start-debian.sh`
+
+The interactive Debian launcher is `~/start-debian.sh` in the outer Termux shell. The repository implementation at [`scripts/start-debian.sh`](../scripts/start-debian.sh) ends by launching `proot ... /bin/bash -l`; its `--no-attach` flag only affects AI workspace attachment and **does not execute a supplied backup command or exit automatically**. **Do not set `TIER1_COMMAND="~/start-debian.sh --no-attach"`**: this would start an interactive session, potentially hang cron, and interfere with Tier-2.
+
+The repository launcher uses a configurable `ANDRONIX_ROOTFS` (default `~/.andronix/distros/debian/rootfs`), whereas the Tier-2 snapshot script defaults to `~/debian-fs`. Before attempting Tier-2, explicitly confirm the actual rootfs location and set `ROOTFS_DIR` appropriately. Do not assume these defaults are interchangeable.
+
+For unattended Tier-1, a separate **tested noninteractive PRoot command wrapper** is still required. It must use the same rootfs/bind mounts and Debian user as `start-debian.sh`, bypass the tmux auto-launch, invoke the Tier-1 script once, propagate its exit code, and terminate. The cron runner's `TIER1_COMMAND` should then point to that wrapper. No automatic launcher wrapper has yet been validated against your device.
+
 ## Tier-2 safety gate
 
 A rootfs snapshot requires all Debian PRoot sessions to have exited. The runner **skips**, rather than kills, an active session. The operator must run `pre_snapshot_clean.sh` in Debian, exit all PRoot sessions, and then create a readiness marker:
