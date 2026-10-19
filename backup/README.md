@@ -176,3 +176,14 @@ The installed schedule uses the **device's local time**:
 **Current limitations:** Tier-2 is not fully unattended; it skips if Debian is active or a fresh preflight readiness marker is missing. Android battery restrictions or Termux shutdown can prevent cron from running. The expanded test suite has not been confirmed passing with 100% measured coverage, and a disposable full restore is still required before treating this as production-ready.
 
 See also [TIER2_README.md](TIER2_README.md), [SCHEDULING.md](SCHEDULING.md) and [test_full_flow.sh](test_full_flow.sh).
+
+### Tier-1 regression coverage and current gaps
+
+The full-flow runner now includes [`tests/test_tier1.py`](tests/test_tier1.py), which exercises the original Tier-1 backup with isolated HOME/workspace data, a real SQLite database and GPG encryption, and mocked rclone/curl/systemctl. It checks encrypted archive contents, application state, cloud-failure behavior, missing archives and local retention. The original Tier-1 script is **not modified**.
+
+```bash
+cd ~/toolz
+bash backup/test_full_flow.sh
+```
+
+**Coverage status:** This adds Tier-1 test cases; it does **not** establish 100% line, branch or functional coverage. The Tier-1 restore script currently invokes interactive `gpg --decrypt` without accepting the configured unattended passphrase; the affected tests are marked as expected failures rather than falsely counted as passing restore verification. Run a real disposable restore before trusting disaster recovery. A strict 100% shell coverage gate requires instrumenting shell execution, testing all remaining branches and resolving the expected failures.
