@@ -3,22 +3,18 @@
 # File:        scripts/start-cline-2.sh
 # Repository:  https://github.com/bmifsud/toolz
 # Description: Launches Andronix Debian and opens a 2-session (2-pane) AI
-#              workspace (stacked vertically in portrait, side-by-side in
-#              landscape) running:
+#              workspace running Cline in both panes:
 #                - Pane 0 (Top / Left):     Cline CLI (cline)
-#                - Pane 1 (Bottom / Right): OpenAI Codex CLI (codex --no-daemon)
-#
-# Works from Termux:Widget (~/.shortcut / ~/.shortcuts), Outer Termux, and
-# Inside Debian (proot).
-# Usage:
-#   ./start-cline-2.sh [--portrait | --landscape | --auto] [--no-attach]
+#                - Pane 1 (Bottom / Right): Cline CLI (cline)
 # ==============================================================================
 
 set -euo pipefail
 
 export AI_SESSION_COUNT=2
-export AI_PANE0_TITLE="Cline"
+export AI_PANE0_TITLE="Cline-1"
 export AI_PANE0_CMD="cline"
+export AI_PANE1_TITLE="Cline-2"
+export AI_PANE1_CMD="cline"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOTFS_SCRIPTS="${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}/home/b/toolz/scripts"
 
@@ -36,8 +32,10 @@ else
     DEBIAN_HOME="${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}/home/b"
     if [[ -d "$DEBIAN_HOME" ]]; then
         echo "2" > "${DEBIAN_HOME}/.ai_session_count" 2>/dev/null || true
-        echo "Cline" > "${DEBIAN_HOME}/.ai_pane0_title" 2>/dev/null || true
+        echo "Cline-1" > "${DEBIAN_HOME}/.ai_pane0_title" 2>/dev/null || true
         echo "cline" > "${DEBIAN_HOME}/.ai_pane0_cmd" 2>/dev/null || true
+        echo "Cline-2" > "${DEBIAN_HOME}/.ai_pane1_title" 2>/dev/null || true
+        echo "cline" > "${DEBIAN_HOME}/.ai_pane1_cmd" 2>/dev/null || true
     fi
     exec "$HOME/start-debian.sh"
 fi

@@ -133,12 +133,28 @@ STATE_FILE_SESSIONS="${HOME}/.ai_session_count"
 STATE_FILE_ORIENTATION="${HOME}/.ai_orientation"
 STATE_FILE_PANE0_TITLE="${HOME}/.ai_pane0_title"
 STATE_FILE_PANE0_CMD="${HOME}/.ai_pane0_cmd"
+STATE_FILE_PANE1_TITLE="${HOME}/.ai_pane1_title"
+STATE_FILE_PANE1_CMD="${HOME}/.ai_pane1_cmd"
+STATE_FILE_PANE2_TITLE="${HOME}/.ai_pane2_title"
+STATE_FILE_PANE2_CMD="${HOME}/.ai_pane2_cmd"
 
 if [[ -z "${AI_PANE0_TITLE:-}" && -f "$STATE_FILE_PANE0_TITLE" ]]; then
     AI_PANE0_TITLE="$(cat "$STATE_FILE_PANE0_TITLE" 2>/dev/null || true)"
 fi
 if [[ -z "${AI_PANE0_CMD:-}" && -f "$STATE_FILE_PANE0_CMD" ]]; then
     AI_PANE0_CMD="$(cat "$STATE_FILE_PANE0_CMD" 2>/dev/null || true)"
+fi
+if [[ -z "${AI_PANE1_TITLE:-}" && -f "$STATE_FILE_PANE1_TITLE" ]]; then
+    AI_PANE1_TITLE="$(cat "$STATE_FILE_PANE1_TITLE" 2>/dev/null || true)"
+fi
+if [[ -z "${AI_PANE1_CMD:-}" && -f "$STATE_FILE_PANE1_CMD" ]]; then
+    AI_PANE1_CMD="$(cat "$STATE_FILE_PANE1_CMD" 2>/dev/null || true)"
+fi
+if [[ -z "${AI_PANE2_TITLE:-}" && -f "$STATE_FILE_PANE2_TITLE" ]]; then
+    AI_PANE2_TITLE="$(cat "$STATE_FILE_PANE2_TITLE" 2>/dev/null || true)"
+fi
+if [[ -z "${AI_PANE2_CMD:-}" && -f "$STATE_FILE_PANE2_CMD" ]]; then
+    AI_PANE2_CMD="$(cat "$STATE_FILE_PANE2_CMD" 2>/dev/null || true)"
 fi
 
 if [[ -z "$ORIENTATION_MODE" ]]; then

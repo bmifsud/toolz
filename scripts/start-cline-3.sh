@@ -3,23 +3,21 @@
 # File:        scripts/start-cline-3.sh
 # Repository:  https://github.com/bmifsud/toolz
 # Description: Launches Andronix Debian and opens a 3-session (3-pane) AI
-#              workspace (stacked vertically in portrait, side-by-side in
-#              landscape) running:
+#              workspace running Cline in all panes:
 #                - Pane 0 (Top / Left):     Cline CLI (cline)
-#                - Pane 1 (Middle):         OpenAI Codex CLI (codex --no-daemon)
-#                - Pane 2 (Bottom / Right): Google Jules CLI (jules)
-#
-# Works from Termux:Widget (~/.shortcut / ~/.shortcuts), Outer Termux, and
-# Inside Debian (proot).
-# Usage:
-#   ./start-cline-3.sh [--portrait | --landscape | --auto] [--no-attach]
+#                - Pane 1 (Middle):         Cline CLI (cline)
+#                - Pane 2 (Bottom / Right): Cline CLI (cline)
 # ==============================================================================
 
 set -euo pipefail
 
 export AI_SESSION_COUNT=3
-export AI_PANE0_TITLE="Cline"
+export AI_PANE0_TITLE="Cline-1"
 export AI_PANE0_CMD="cline"
+export AI_PANE1_TITLE="Cline-2"
+export AI_PANE1_CMD="cline"
+export AI_PANE2_TITLE="Cline-3"
+export AI_PANE2_CMD="cline"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOTFS_SCRIPTS="${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}/home/b/toolz/scripts"
 
@@ -37,8 +35,12 @@ else
     DEBIAN_HOME="${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debian/rootfs}/home/b"
     if [[ -d "$DEBIAN_HOME" ]]; then
         echo "3" > "${DEBIAN_HOME}/.ai_session_count" 2>/dev/null || true
-        echo "Cline" > "${DEBIAN_HOME}/.ai_pane0_title" 2>/dev/null || true
+        echo "Cline-1" > "${DEBIAN_HOME}/.ai_pane0_title" 2>/dev/null || true
         echo "cline" > "${DEBIAN_HOME}/.ai_pane0_cmd" 2>/dev/null || true
+        echo "Cline-2" > "${DEBIAN_HOME}/.ai_pane1_title" 2>/dev/null || true
+        echo "cline" > "${DEBIAN_HOME}/.ai_pane1_cmd" 2>/dev/null || true
+        echo "Cline-3" > "${DEBIAN_HOME}/.ai_pane2_title" 2>/dev/null || true
+        echo "cline" > "${DEBIAN_HOME}/.ai_pane2_cmd" 2>/dev/null || true
     fi
     exec "$HOME/start-debian.sh"
 fi

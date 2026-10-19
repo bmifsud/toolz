@@ -134,6 +134,18 @@ if [[ -d "$DEBIAN_HOME" ]]; then
     if [[ -n "${AI_PANE0_CMD:-}" ]]; then
         echo "$AI_PANE0_CMD" > "${DEBIAN_HOME}/.ai_pane0_cmd" 2>/dev/null || true
     fi
+    if [[ -n "${AI_PANE1_TITLE:-}" ]]; then
+        echo "$AI_PANE1_TITLE" > "${DEBIAN_HOME}/.ai_pane1_title" 2>/dev/null || true
+    fi
+    if [[ -n "${AI_PANE1_CMD:-}" ]]; then
+        echo "$AI_PANE1_CMD" > "${DEBIAN_HOME}/.ai_pane1_cmd" 2>/dev/null || true
+    fi
+    if [[ -n "${AI_PANE2_TITLE:-}" ]]; then
+        echo "$AI_PANE2_TITLE" > "${DEBIAN_HOME}/.ai_pane2_title" 2>/dev/null || true
+    fi
+    if [[ -n "${AI_PANE2_CMD:-}" ]]; then
+        echo "$AI_PANE2_CMD" > "${DEBIAN_HOME}/.ai_pane2_cmd" 2>/dev/null || true
+    fi
 
     # Automatically populate ~/.shortcut and ~/.shortcuts in outer Termux
     if [[ -d "${DEBIAN_HOME}/toolz/scripts" ]]; then
