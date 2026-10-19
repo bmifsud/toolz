@@ -14,9 +14,28 @@ export ROOTFS_DIR="${ROOTFS_DIR:-${ANDRONIX_ROOTFS:-$HOME/.andronix/distros/debi
 export START_SCRIPT="${START_SCRIPT:-$HOME/start-debian.sh}"
 STATE="$HOME/.local/state/toolz-backup"; mkdir -p "$STATE"
 exec 9>"$STATE/backup.lock"
-flock -n 9 || { echo 'Another backup is running; skipping'; exit 75; }
+flock -n 9 || { echo 'Another backup is running; skipping'; command -v termux-notification >/dev/null 2>&1 && termux-notification --id 6103 --title "Backup skipped ($MODE)" --content "Another backup is running" >/dev/null 2>&1 || true; exit 75; }
 LOG="$STATE/$MODE-$(date +%Y%m%d_%H%M%S).log"
 exec >>"$LOG" 2>&1
+notify(){
+ local title="$1" message="$2"
+ if command -v termux-notification >/dev/null 2>&1; then
+   termux-notification --id "$([[ "$MODE" == tier1 ]] && echo 6101 || echo 6102)" --title "$title" --content "$message" >/dev/null 2>&1 || true
+ fi
+}
+on_exit(){
+ local status="$1"
+ trap - EXIT
+ if [[ "$status" == 0 ]]; then
+   notify "Backup SUCCESS ($MODE)" "Backup completed and verified on Google Drive. Log: $LOG"
+ elif [[ "$status" == 75 ]]; then
+   notify "Backup SKIPPED ($MODE)" "Safe-skip condition; check log: $LOG"
+ else
+   notify "Backup FAILED ($MODE)" "Exit code $status; check log: $LOG"
+ fi
+ exit "$status"
+}
+trap 'on_exit "$?"' EXIT
 echo "BEGIN $MODE $(date -Is)"
 : "${BACKUP_PASSPHRASE_FILE:?Set BACKUP_PASSPHRASE_FILE to protected file containing GPG password}"
 [[ -r "$BACKUP_PASSPHRASE_FILE" ]] || { echo 'Passphrase file not readable' >&2; exit 1; }
