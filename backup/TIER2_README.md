@@ -56,3 +56,35 @@ The 12 isolated tests cover syntax, encrypted snapshots, missing rootfs, bad arg
 ## Pending device acceptance
 
 Validate actual Debian service shutdown and WAL checkpoint; inspect rootfs layout; confirm cloud upload and retrieval using the real remote; test restore on a disposable Termux installation; verify boot and application state; inspect archive metadata, symlink behavior, interruption and low-disk scenarios. Treat the implementation as **development-stage** until those checks pass.
+
+## Modern Andronix layout (your Termux installation)
+
+For installations with `~/.andronix/distros/debian/rootfs`, use the separate [`snapshot_andronix_layout.sh`](snapshot_andronix_layout.sh) instead of the Classic `snapshot_andronix_debian.sh`. The new script preserves the actual relative rootfs layout and `start-debian.sh`. It **never restores over the live rootfs**; `--restore-test` extracts to a new staging destination.
+
+**Do not enable Tier-2 cron yet:** the existing scheduler still calls the Classic script and requires a preflight marker. First validate a manual snapshot and staged restore on your device, with all Debian/PRoot sessions stopped.
+
+From **outer Termux** after `git pull --ff-only origin main`:
+
+```bash
+# Load the protected settings into this shell.
+set -a
+source ~/.config/toolz-backup/config
+set +a
+
+# Ensure there are no active Debian PRoot sessions before continuing.
+pgrep -af proot || true
+
+# Encrypted local snapshot (may require substantial free space).
+bash ~/toolz/backup/snapshot_andronix_layout.sh snapshot
+
+# Locate the resulting encrypted archive.
+ls -lht ~/.local/share/toolz-backup/tier2/*.gpg | head
+
+# Check archive decryption and safe member paths (replace ARCHIVE).
+bash ~/toolz/backup/snapshot_andronix_layout.sh --verify /absolute/path/to/ARCHIVE.tar.gz.gpg
+
+# Test extraction to a NEW, empty destination outside .andronix.
+bash ~/toolz/backup/snapshot_andronix_layout.sh --restore-test /absolute/path/to/ARCHIVE.tar.gz.gpg "$HOME/tier2-restore-test-20261019"
+```
+
+Use `--gdrive` instead of `snapshot` for an upload with streamed SHA-256 cloud comparison. This is a **new implementation and has not yet passed a real-device snapshot/restore test**. Avoid running it until you have sufficient free storage and have confirmed that Debian is stopped. Staged extraction does not validate bootability. The snapshot intentionally excludes runtime pseudo-filesystems (tmp, proc, sys, dev); special file entries and symlinks are rejected by the restore-test validator. A snapshot containing symlinks therefore cannot yet pass restore verification; this limitation must be resolved before production use.
