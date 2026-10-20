@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Supervised URL demo</string>
+    <string name="disclosure">This demo uses an Accessibility Service only to display a small floating pointer and Pause, Resume, and Stop controls above other apps. It does not read screen content, perform gestures, or automate sensitive actions. Open demo only asks your browser to open the fixed public URL below; the browser may use your existing signed-in session. No browsing results are read. The local audit contains session actions only and is not transmitted.\n\nFirst acknowledge this disclosure, then enable Supervised URL demo in Android Accessibility settings. Return here and tap Arm for each new session. Enabling the service never arms it automatically. Stop removes the overlay and clears the armed session; you can disable the service in Settings at any time.</string>
+    <string name="service_description">Displays supervised demo controls only. No screen reading or gestures. Enable here, then return to the app and explicitly Arm. Stop removes all overlay controls.</string>
+    <string name="consent">I understand and agree to this limited accessibility use</string>
+    <string name="settings">Open Accessibility settings</string>
+    <string name="consent_required">Acknowledge the disclosure before opening settings.</string>
+    <string name="settings_failed">Accessibility settings unavailable. Session remains stopped.</string>
+    <string name="arm">Arm demo session</string>
+    <string name="open_demo">Open fixed demo URL</string>
+    <string name="pause">Pause</string>
+    <string name="resume">Resume</string>
+    <string name="stop">Stop</string>
+    <string name="pointer">Demo pointer</string>
+    <string name="armed">Armed by you. Tap Open fixed demo URL to demonstrate.</string>
+    <string name="stopped">Stopped. Explicit Arm is required for a new session.</string>
+    <string name="disconnected">Disconnected / stopped. Enable the service in Accessibility settings, then return and Arm.</string>
+    <string name="overlay_failed">Overlay unavailable. Session stopped; check Accessibility settings.</string>
+    <string name="opened">Fixed URL sent to browser. No page content is inspected.</string>
+    <string name="browser_failed">Cannot open the fixed URL. No compatible browser or access denied. Session stopped.</string>
+    <string name="audit">Local session audit</string>
+</resources>
