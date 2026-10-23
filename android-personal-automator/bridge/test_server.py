@@ -72,11 +72,61 @@ class BridgeTests(unittest.TestCase):
             def __exit__(self, *_): pass
             def read(self, _): return json.dumps(response).encode()
         with patch.dict('os.environ', {'OPENAI_MODEL': 'test-model', 'OPENAI_API_KEY': 'test-key'}), \
-                patch('server.urlopen', return_value=Response()) as request:
+                patch('server.build_opener') as opener:
+            request = opener.return_value.open
+            request.return_value = Response()
             self.assertEqual('NONE', server.propose('task')['action'])
             payload = json.loads(request.call_args.args[0].data)
             self.assertFalse(payload['store'])
             self.assertEqual('task', payload['input'])
+
+    def test_omniroute_chat_request(self):
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+            def read(self, _): return json.dumps({'choices': [{'finish_reason': 'stop',
+                'message': {'content': '{"action":"NONE","explanation":"Unsupported"}'}}]}).encode()
+        with patch.dict('os.environ', {'AI_PROTOCOL': 'chat_completions',
+                'AI_BASE_URL': 'http://localhost:20128/v1', 'AI_API_KEY': 'route-test-key',
+                'AI_MODEL': 'configured-route'}, clear=True), patch('server.build_opener') as opener:
+            opener.return_value.open.return_value = Response()
+            self.assertEqual('NONE', server.propose('task')['action'])
+            request = opener.return_value.open.call_args.args[0]
+            self.assertEqual('http://localhost:20128/v1/chat/completions', request.full_url)
+            self.assertEqual('Bearer route-test-key', request.get_header('Authorization'))
+            body = json.loads(request.data)
+            self.assertEqual('configured-route', body['model'])
+            self.assertEqual('task', body['messages'][1]['content'])
+            self.assertFalse(body['stream'])
+
+    def test_provider_url_validation(self):
+        for base in ('http://public.example/v1', 'https://user:password@example.com/v1',
+                     'https://example.com/v1?token=secret', 'file:///tmp/model'):
+            with patch.dict('os.environ', {'AI_BASE_URL': base, 'AI_API_KEY': 'test',
+                                         'AI_MODEL': 'test'}, clear=True):
+                with self.assertRaises(ValueError): server.provider_config()
+        with patch.dict('os.environ', {'AI_BASE_URL': 'https://route.example/v1/',
+                                     'AI_API_KEY': 'test', 'AI_MODEL': 'test'}, clear=True):
+            self.assertEqual('https://route.example/v1', server.provider_config()[1])
+
+    def test_chat_truncation_and_tool_calls_rejected(self):
+        for choice in ({'finish_reason': 'length', 'message': {'content': '{}'}},
+                       {'finish_reason': 'stop', 'message': {'tool_calls': [{}], 'content': '{}'}}):
+            class Response:
+                def __enter__(self): return self
+                def __exit__(self, *_): pass
+                def read(self, _): return json.dumps({'choices': [choice]}).encode()
+            with patch.dict('os.environ', {'AI_PROTOCOL': 'chat_completions',
+                    'AI_API_KEY': 'test', 'AI_MODEL': 'test'}, clear=True), \
+                    patch('server.build_opener') as opener:
+                opener.return_value.open.return_value = Response()
+                with self.assertRaises(ValueError): server.propose('task')
+
+    def test_missing_config_and_unknown_protocol_rejected(self):
+        with patch.dict('os.environ', {}, clear=True):
+            with self.assertRaises(ValueError): server.provider_config()
+        with patch.dict('os.environ', {'AI_PROTOCOL': 'unknown'}, clear=True):
+            with self.assertRaises(ValueError): server.provider_config()
 
     def test_schema_rejects_extra_or_unknown_actions(self):
         for value in ({'action': 'OPEN_URL', 'explanation': 'x'},

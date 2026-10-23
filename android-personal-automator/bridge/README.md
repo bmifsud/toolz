@@ -9,8 +9,13 @@ connects only on Send and requires a separate local approval.
 Configure environment variables using your host's secret manager or private shell
 session. Never commit their values:
 
-- `OPENAI_API_KEY`: your provider API key, kept only on this server.
-- `OPENAI_MODEL`: a Responses API text model available to your account.
+- `AI_API_KEY`: your provider or OmniRoute API token, kept only on this server.
+- `AI_MODEL`: the exact model or combo ID configured in your provider.
+- `AI_BASE_URL`: provider base URL including `/v1`; defaults to `https://api.openai.com/v1`.
+- `AI_PROTOCOL`: `responses` (default) or `chat_completions`.
+
+Existing `OPENAI_API_KEY` and `OPENAI_MODEL` variables remain supported as fallbacks.
+
 - `BRIDGE_TOKEN`: independent random token. Generate one with
   `python3 -c 'import secrets; print(secrets.token_urlsafe(48))'`.
 - `PORT`: optional, defaults to `8080`.
@@ -66,7 +71,7 @@ The local audit reports intent dispatch, which does not prove a page loaded.
 
 ## Data and validation
 
-Typed tasks go to this server and OpenAI. Responses requests set `store: false`;
+Typed tasks go to this server and your configured provider (including OmniRoute and its upstreams). Responses requests set `store: false`;
 this is not a claim of zero provider retention. No task/token logging or persistence
 is implemented here. Check infrastructure and provider policies. API usage is separate
 from your ChatGPT subscription.
@@ -74,3 +79,34 @@ from your ChatGPT subscription.
 Tests use a fake provider and loopback HTTP; no billable calls or credentials.
 Live HTTPS, model access and real-device behavior must be verified after hosting.
 Based on the official [Responses API quickstart](https://developers.openai.com/api/docs/quickstart).
+
+
+## OmniRoute at localhost:20128
+
+Run the bridge on the **same device/host** as OmniRoute, with these environment variables:
+
+```sh
+export AI_PROTOCOL=chat_completions
+export AI_BASE_URL=http://localhost:20128/v1
+```
+
+Set `AI_API_KEY` privately to an OmniRoute inference token and `AI_MODEL` to the
+exact enabled model/combo ID from your OmniRoute dashboard. Set an independent
+`BRIDGE_TOKEN` for the Android app. Do not use the OmniRoute admin password or
+reuse the provider token as the bridge token.
+
+The bridge app-facing endpoint still needs HTTPS, as described above. Only the
+bridge-to-provider hop may use HTTP on `localhost`, `127.0.0.1` or `::1`. Non-loopback
+HTTP URLs, embedded credentials, query strings and provider redirects are rejected.
+
+A Render-hosted bridge cannot reach your tablet/PC at `localhost`. Either run the
+bridge alongside OmniRoute and expose only its authenticated `/proposal` endpoint
+through HTTPS, or configure a protected HTTPS endpoint for OmniRoute reachable
+from Render and set that endpoint as `AI_BASE_URL`. Do not expose OmniRoute's
+management dashboard merely to connect this app. No tunnel is created automatically.
+
+The app's URL and token fields identify the **bridge**, not OmniRoute directly.
+No APK change is required for this server-side protocol adapter. Live verification
+requires your real OmniRoute model ID, token and a reachable endpoint.
+
+Protocol reference: [OmniRoute API](https://omniroute.hagicode.com/en-US/reference/api-reference/).
