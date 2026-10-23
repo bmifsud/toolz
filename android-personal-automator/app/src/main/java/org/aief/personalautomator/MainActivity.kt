@@ -34,6 +34,8 @@ class MainActivity : Activity() {
     private lateinit var endpoint: EditText
     private lateinit var token: EditText
     private lateinit var task: EditText
+    private lateinit var model: EditText
+    private lateinit var localRoute: CheckBox
 
     private fun discardProposal() {
         requestGeneration++
@@ -96,7 +98,7 @@ class MainActivity : Activity() {
         resume = button(R.string.resume) { DemoAccessibilityService.instance?.resume() }
         stop = button(R.string.stop) { DemoAccessibilityService.instance?.stop() }
         layout.addView(TextView(this).apply {
-            text = "AI proposal connection\nOnly your typed task is sent to your server and its AI provider. No screen contents are sent. Approving can only open the demo PR. This is separate from this ChatGPT conversation."
+            text = "AI proposal connection\nOnly your typed task is sent to your selected server or local OmniRoute and its AI providers. No screen contents are sent. Approving can only open the demo PR. This is separate from this ChatGPT conversation."
         })
         fun field(label: String, max: Int, secret: Boolean = false): EditText = EditText(this).apply {
             hint = label
@@ -110,6 +112,23 @@ class MainActivity : Activity() {
         endpoint = field("Trusted server HTTPS URL, ending /proposal", 2048)
         token = field("Server access token (not an OpenAI API key)", 512, true)
         task = field("Task to send (up to 2000 characters)", 2000)
+        model = field("OmniRoute model or combo ID (from your dashboard)", 200)
+        localRoute = CheckBox(this).apply {
+            text = "Use OmniRoute running on this tablet"
+            isSaveEnabled = false
+            setOnCheckedChangeListener { _, checked ->
+                discardProposal()
+                endpoint.setText(if (checked) "http://localhost:20128/v1" else "")
+                endpoint.isEnabled = !checked
+                token.hint = if (checked) "OmniRoute inference API token" else "Bridge access token"
+                token.text.clear()
+                model.isEnabled = checked
+                if (::proposal.isInitialized) proposal.text = "Connection mode changed; proposal cleared."
+                if (::ask.isInitialized) refresh()
+            }
+            layout.addView(this)
+        }
+        localRoute.isChecked = true
         proposal = TextView(this).also { layout.addView(it) }
         ask = Button(this).apply {
             text = "Send task to AI server"
@@ -153,10 +172,12 @@ class MainActivity : Activity() {
         val address = endpoint.text.toString().trim()
         val accessToken = token.text.toString()
         val instruction = task.text.toString()
+        val useLocalRoute = localRoute.isChecked
+        val modelId = model.text.toString().trim()
         proposal.text = "Waiting for AI proposal…"
         refresh()
         Thread {
-            val result = runCatching { request.request(address, accessToken, instruction) }
+            val result = runCatching { request.request(address, accessToken, instruction, useLocalRoute, modelId) }
             runOnUiThread {
                 if (generation == requestGeneration) {
                     client = null
@@ -172,7 +193,7 @@ class MainActivity : Activity() {
                     }, onFailure = {
                         gate.clear()
                         approve.isEnabled = false
-                        proposal.text = "Request failed. Check HTTPS URL, token and server. Nothing executed."
+                        proposal.text = "Request failed. Check connection, token and model ID. Nothing executed."
                     })
                     refresh()
                 }
