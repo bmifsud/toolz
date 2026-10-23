@@ -5,7 +5,8 @@ import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, build_opener, HTTPRedirectHandler
+from urllib.parse import urlsplit
 
 MAX_BODY = 8192
 ALLOWED = {'OPEN_DEMO', 'NONE'}
@@ -26,23 +27,65 @@ def validate_proposal(value):
     return value
 
 
+class NoRedirects(HTTPRedirectHandler):
+    def redirect_request(self, *_args, **_kwargs):
+        return None
+
+
+def provider_config():
+    # Existing installations keep their Responses API configuration.
+    mode = os.environ.get('AI_PROTOCOL', 'responses')
+    if mode not in ('responses', 'chat_completions'):
+        raise ValueError('Unsupported AI_PROTOCOL')
+    base = os.environ.get('AI_BASE_URL', 'https://api.openai.com/v1').rstrip('/')
+    url = urlsplit(base)
+    loopback = url.hostname in ('localhost', '127.0.0.1', '::1')
+    if (not url.hostname or url.username is not None or url.password is not None
+            or url.query or url.fragment or url.scheme not in ('https', 'http')
+            or (url.scheme == 'http' and not loopback)):
+        raise ValueError('AI_BASE_URL requires HTTPS, or HTTP on loopback only')
+    key = os.environ.get('AI_API_KEY') or os.environ.get('OPENAI_API_KEY')
+    model = os.environ.get('AI_MODEL') or os.environ.get('OPENAI_MODEL')
+    if not key or not model:
+        raise ValueError('Set AI_API_KEY and AI_MODEL (legacy OPENAI_* also supported)')
+    return mode, base, key, model
+
+
 def propose(task):
-    payload = json.dumps({'model': os.environ['OPENAI_MODEL'], 'input': task,
-                          'instructions': INSTRUCTIONS, 'store': False,
-                          'max_output_tokens': 1200}).encode()
-    request = Request('https://api.openai.com/v1/responses', data=payload, headers={
-        'Authorization': 'Bearer ' + os.environ['OPENAI_API_KEY'],
-        'Content-Type': 'application/json'})
-    with urlopen(request, timeout=35) as response:
-        raw = response.read(262145)
+    mode, base, key, model = provider_config()
+    if mode == 'chat_completions':
+        path = '/chat/completions'
+        body = {'model': model, 'messages': [
+            {'role': 'system', 'content': INSTRUCTIONS},
+            {'role': 'user', 'content': task}], 'stream': False, 'max_tokens': 1200}
+    else:
+        path = '/responses'
+        body = {'model': model, 'input': task, 'instructions': INSTRUCTIONS,
+                'store': False, 'max_output_tokens': 1200}
+    request = Request(base + path, data=json.dumps(body).encode(), headers={
+        'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
+    # Never forward a provider key to a redirected host.
+    with build_opener(NoRedirects()).open(request, timeout=35) as result:
+        raw = result.read(262145)
     if len(raw) > 262144:
         raise ValueError('Provider response too large')
     response = json.loads(raw)
-    if response.get('status') != 'completed':
-        raise ValueError('Incomplete provider response')
-    text = ''.join(part['text'] for item in response.get('output', [])
-                   if item.get('type') == 'message'
-                   for part in item.get('content', []) if part.get('type') == 'output_text')
+    if mode == 'chat_completions':
+        choices = response.get('choices', [])
+        if len(choices) != 1 or choices[0].get('finish_reason') != 'stop':
+            raise ValueError('Incomplete provider response')
+        message = choices[0]['message']
+        if message.get('tool_calls') or message.get('function_call') or message.get('refusal'):
+            raise ValueError('Unsupported provider response')
+        text = message.get('content')
+        if not isinstance(text, str):
+            raise ValueError('Missing provider text')
+    else:
+        if response.get('status') != 'completed':
+            raise ValueError('Incomplete provider response')
+        text = ''.join(part['text'] for item in response.get('output', [])
+                       if item.get('type') == 'message'
+                       for part in item.get('content', []) if part.get('type') == 'output_text')
     return validate_proposal(json.loads(text))
 
 
@@ -55,7 +98,7 @@ class Handler(BaseHTTPRequestHandler):
         pass  # Never log tokens, task text, or provider errors.
 
     def reply(self, code, value):
-        body = json.dumps(value).encode()
+        body = json.dumps(value, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
@@ -120,7 +163,8 @@ def make_server(address, token, proposer=propose):
 
 if __name__ == '__main__':
     # Fail at startup, rather than accepting tasks with missing provider settings.
-    for name in ('OPENAI_API_KEY', 'OPENAI_MODEL', 'BRIDGE_TOKEN'):
+    provider_config()
+    for name in ('BRIDGE_TOKEN',):
         if not os.environ.get(name):
             raise SystemExit('Missing required environment variable: ' + name)
     make_server((os.environ.get('BRIDGE_HOST', '127.0.0.1'),

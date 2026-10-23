@@ -2,6 +2,27 @@
 
 Implements toolz issue #2 in draft PR #1. Native Kotlin UI with an optional authenticated HTTPS AI proposal bridge. No unattended automation, screen reading, gesture injection, GitHub writes, or automatic deployment.
 
+## Local OmniRoute on your Android tablet (0.3.0)
+
+No Render service or bridge is needed when OmniRoute runs on the same tablet.
+
+1. Keep OmniRoute running at `http://localhost:20128`.
+2. Install the 0.3.0 APK, acknowledge the disclosure, enable the service, and arm.
+3. Leave **Use OmniRoute running on this tablet** checked (the default).
+4. Enter an OmniRoute inference token and the exact model/combo ID from its dashboard.
+5. Type `Open the demo PR`, send, review, and explicitly approve or reject.
+
+Only the app-to-OmniRoute loopback hop uses HTTP; only localhost/127.0.0.1 on port
+20128 with the `/v1/chat/completions` path is accepted. Other app connections require
+HTTPS. OmniRoute may forward your typed task to its upstream providers. Tokens are
+kept in memory, not saved in app state or preferences. No screen content is sent.
+The app does not start OmniRoute or discover its credentials/models automatically.
+Unknown actions, tool calls, truncated output and malformed proposals are rejected.
+Changing connection modes discards pending requests and approval.
+
+Device checks: verify successful local inference, wrong token/model, stopped OmniRoute,
+malformed output, pause/stop/background invalidation, and inability to use non-loopback HTTP.
+
 ## AI proposals (0.2.0)
 
 The app sends a typed task to the included [bridge](bridge/README.md).
