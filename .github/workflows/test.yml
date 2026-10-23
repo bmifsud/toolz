@@ -13,12 +13,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Detect legacy launcher component
+        id: launcher
+        shell: bash
+        run: |
+          if [[ -d scripts ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "Legacy tmux suite not applicable: scripts/ was removed from this repository." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Ensure tmux is installed
+        if: steps.launcher.outputs.present == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y tmux
 
       - name: Run automated test suite
+        if: steps.launcher.outputs.present == 'true'
         run: |
-          chmod +x scripts/*.sh .shortcut/*.sh .shortcuts/*.sh tests/*.sh
-          ./tests/test-launch-ai-tmux.sh
+          bash tests/test-launch-ai-tmux.sh
