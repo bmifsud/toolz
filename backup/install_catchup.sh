@@ -8,7 +8,15 @@ command -v flock >/dev/null || { echo 'Install util-linux first' >&2; exit 1; }
 mkdir -p "$HOME/.termux/boot" "$HOME/.local/state/toolz-backup"
 # This boot hook requires the separate Termux:Boot Android app.
 boot="$HOME/.termux/boot/20-toolz-backup-catchup"
-if [[ -f "$boot" ]]; then cp -p "$boot" "$boot.bak.$(date +%Y%m%d_%H%M%S)"; fi
+backup_dir="$HOME/.local/state/toolz-backup/boot-hook-backups"
+mkdir -p "$backup_dir"
+# Termux:Boot executes executable files in ~/.termux/boot, including backup copies.
+# Preserve prior copies outside that directory and migrate old installer backups.
+for old in "$HOME/.termux/boot/20-toolz-backup-catchup.bak."*; do
+  [[ -f "$old" ]] || continue
+  mv -n "$old" "$backup_dir/"
+done
+if [[ -f "$boot" ]]; then cp -p "$boot" "$backup_dir/20-toolz-backup-catchup.bak.$(date +%Y%m%d_%H%M%S)"; fi
 cat > "$boot" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
 export PATH="/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets:\$PATH"
