@@ -9,11 +9,14 @@ enum class SessionState { STOPPED, READY, PAUSED }
 class SessionController {
     var state: SessionState = SessionState.STOPPED
         private set
+    var revision = 0L
+        private set
     private val records = ArrayDeque<String>()
     val audit: List<String> get() = records.toList()
 
     fun arm() {
         if (state == SessionState.STOPPED) {
+            revision++
             state = SessionState.READY
             record("Session armed by user")
         }
@@ -21,6 +24,7 @@ class SessionController {
 
     fun pause() {
         if (state == SessionState.READY) {
+            revision++
             state = SessionState.PAUSED
             record("Session paused")
         }
@@ -28,12 +32,14 @@ class SessionController {
 
     fun resume() {
         if (state == SessionState.PAUSED) {
+            revision++
             state = SessionState.READY
             record("Session resumed by user")
         }
     }
 
     fun stop() {
+        revision++
         state = SessionState.STOPPED
         record("Session stopped")
     }

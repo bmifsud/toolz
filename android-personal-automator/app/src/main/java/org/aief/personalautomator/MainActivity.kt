@@ -6,6 +6,9 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowInsets
+import android.text.InputType
+import android.text.InputFilter
+import android.widget.EditText
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -21,6 +24,24 @@ class MainActivity : Activity() {
     private lateinit var pause: Button
     private lateinit var resume: Button
     private lateinit var stop: Button
+
+    private val gate = ProposalGate()
+    private var client: ProposalClient? = null
+    private var requestGeneration = 0
+    private lateinit var proposal: TextView
+    private lateinit var ask: Button
+    private lateinit var approve: Button
+    private lateinit var endpoint: EditText
+    private lateinit var token: EditText
+    private lateinit var task: EditText
+
+    private fun discardProposal() {
+        requestGeneration++
+        client?.cancel()
+        client = null
+        gate.clear()
+        if (::approve.isInitialized) approve.isEnabled = false
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,16 +95,102 @@ class MainActivity : Activity() {
         pause = button(R.string.pause) { DemoAccessibilityService.instance?.pause() }
         resume = button(R.string.resume) { DemoAccessibilityService.instance?.resume() }
         stop = button(R.string.stop) { DemoAccessibilityService.instance?.stop() }
+        layout.addView(TextView(this).apply {
+            text = "AI proposal connection\nOnly your typed task is sent to your server and its AI provider. No screen contents are sent. Approving can only open the demo PR. This is separate from this ChatGPT conversation."
+        })
+        fun field(label: String, max: Int, secret: Boolean = false): EditText = EditText(this).apply {
+            hint = label
+            isSaveEnabled = false
+            filters = arrayOf(InputFilter.LengthFilter(max))
+            inputType = if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+                else InputType.TYPE_CLASS_TEXT
+            importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            layout.addView(this)
+        }
+        endpoint = field("Trusted server HTTPS URL, ending /proposal", 2048)
+        token = field("Server access token (not an OpenAI API key)", 512, true)
+        task = field("Task to send (up to 2000 characters)", 2000)
+        proposal = TextView(this).also { layout.addView(it) }
+        ask = Button(this).apply {
+            text = "Send task to AI server"
+            setOnClickListener { requestProposal() }
+            layout.addView(this)
+        }
+        approve = Button(this).apply {
+            text = "Approve: open demo PR #299"
+            isEnabled = false
+            setOnClickListener {
+                val service = DemoAccessibilityService.instance
+                if (service != null && gate.consume(service.session)) service.openDemo()
+                discardProposal()
+                proposal.text = "Proposal consumed. Check the session audit for dispatch result."
+                refresh()
+            }
+            layout.addView(this)
+        }
+        layout.addView(Button(this).apply {
+            text = "Reject / cancel AI request"
+            setOnClickListener {
+                discardProposal()
+                proposal.text = "Request cancelled; proposal discarded."
+                refresh()
+            }
+        })
         audit = TextView(this).also { layout.addView(it) }
         setContentView(scroll)
         scroll.requestApplyInsets()
         refresh()
     }
 
+    private fun requestProposal() {
+        discardProposal()
+        val service = DemoAccessibilityService.instance ?: return
+        if (!consent.isChecked || service.session.state != SessionState.READY) return
+        val revision = service.session.revision
+        val generation = requestGeneration
+        val request = ProposalClient()
+        client = request
+        val address = endpoint.text.toString().trim()
+        val accessToken = token.text.toString()
+        val instruction = task.text.toString()
+        proposal.text = "Waiting for AI proposal…"
+        refresh()
+        Thread {
+            val result = runCatching { request.request(address, accessToken, instruction) }
+            runOnUiThread {
+                if (generation == requestGeneration) {
+                    client = null
+                    if (DemoAccessibilityService.instance !== service ||
+                        service.session.revision != revision ||
+                        service.session.state != SessionState.READY || !consent.isChecked) {
+                        discardProposal()
+                        proposal.text = "Session changed; response discarded."
+                    } else result.fold(onSuccess = { (action, explanation) ->
+                        approve.isEnabled = gate.offer(action, service.session)
+                        proposal.text = "AI explanation (untrusted):\n$explanation\n\n" +
+                            if (action == "OPEN_DEMO") "Proposed action: open $DEMO_URL" else "No supported action proposed."
+                    }, onFailure = {
+                        gate.clear()
+                        approve.isEnabled = false
+                        proposal.text = "Request failed. Check HTTPS URL, token and server. Nothing executed."
+                    })
+                    refresh()
+                }
+            }
+        }.start()
+    }
+
     private fun refresh() {
         if (!::arm.isInitialized) return
         val service = DemoAccessibilityService.instance
         val state = service?.session?.state ?: SessionState.STOPPED
+        if (::ask.isInitialized) {
+            if (state != SessionState.READY) {
+                discardProposal()
+                proposal.text = "AI proposal cleared: session is not ready."
+            }
+            ask.isEnabled = state == SessionState.READY && consent.isChecked && client == null
+        }
         status.text = if (service == null) getString(R.string.disconnected)
             else "${state.name}\n${service.message}"
         arm.isEnabled = service != null && consent.isChecked && state == SessionState.STOPPED
@@ -101,6 +208,8 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        discardProposal()
+        if (::proposal.isInitialized) proposal.text = "AI request and proposal cleared when app left foreground."
         DemoAccessibilityService.changed = null
         super.onStop()
     }

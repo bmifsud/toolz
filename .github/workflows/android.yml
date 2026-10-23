@@ -33,6 +33,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Install pinned Android SDK packages
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Bridge tests (no API calls)
+        run: python3 -m unittest discover -s bridge -v
       - name: Assemble, lint, and unit tests
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
       - name: Upload debug APK
