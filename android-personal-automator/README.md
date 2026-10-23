@@ -1,6 +1,39 @@
 # Android Personal Automator — supervised POC
 
-Implements toolz issue #2 in draft PR #1. Native Kotlin UI; no AI engine, secrets, unattended automation, GitHub writes, or deployment.
+Implements toolz issue #2 in draft PR #1. Native Kotlin UI with an optional authenticated HTTPS AI proposal bridge. No unattended automation, screen reading, gesture injection, GitHub writes, or automatic deployment.
+
+## AI proposals (0.2.0)
+
+The app sends a typed task to the included [bridge](bridge/README.md).
+This is **not a connection to an existing ChatGPT conversation**. A hosted server
+and separately configured provider API access are required; installing the APK does not host a server.
+
+1. Host the bridge behind HTTPS as described in its README.
+2. Install the new APK, acknowledge the updated disclosure, and arm the session.
+3. Enter the trusted server's full `https://…/proposal` URL and its bridge token.
+   Never put your OpenAI API key in the app.
+4. Type `Open the demo PR` and tap **Send task to AI server**.
+5. Review the explanation and exact fixed URL. Tap **Approve: open demo PR #299**
+   or **Reject / cancel AI request**. No returned action executes automatically.
+
+Only `OPEN_DEMO` and `NONE` are accepted. Extra fields, arbitrary URLs,
+unknown actions, redirects, oversized responses and failed requests are rejected.
+Pause, Stop, service replacement, backgrounding, rotation, rejection and a new request
+invalidate pending work; resume/rearm never restores approval. Tokens and typed tasks
+are not saved by the app. A cancelled request may already have reached the server/provider;
+cancellation prevents local approval and execution but cannot undo transmission.
+No screenshots, accessibility nodes, account data, or audit are sent.
+Provider/server privacy and retention policies still apply.
+
+### Additional device checks
+
+- Valid bridge/token: explanation appears, browser opens only after approval; dispatch once.
+- Unsupported task: `NONE` explanation, approval disabled.
+- Wrong token, bad URL, offline, timeout, redirect, malformed/oversized/unknown proposal: no action.
+- During requests and after proposals: pause/resume, stop/rearm, disable service,
+  background, rotate, cancel, and submit a new task; stale responses never enable approval.
+- Instructions proposing taps, shell commands or a different URL fail the local policy.
+- Existing fixed-URL controls still work. HTTPS networking and lifecycle need device testing.
 
 ## Build
 
