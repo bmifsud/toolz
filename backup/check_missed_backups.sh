@@ -85,4 +85,4 @@ if command -v termux-notification >/dev/null 2>&1; then
   termux-notification --id 6104 --title 'Backup catch-up started' --content 'Missed Tier-1 backup detected; starting recovery.' >/dev/null 2>&1 || true
 fi
 # Scheduler owns the main lock, verification, and success/failure notifications.
-"$HERE/run_scheduled_backup.sh" tier1
+bash "$HERE/run_scheduled_backup.sh" tier1
