@@ -48,7 +48,7 @@ on that limit. Do not enable proxy logging of headers, request bodies or tokens.
 Rotate the bridge token if exposed.
 
 In the app enter `https://YOUR_ACTUAL_DOMAIN/proposal`, the **bridge token**, and a task.
-The app does not save the token. Local approval applies only to the fixed PR URL.
+App 0.4.0 saves the token encrypted with Android Keystore and uses it without displaying it. Local approval applies only to the fixed PR URL.
 
 ## Protocol
 
