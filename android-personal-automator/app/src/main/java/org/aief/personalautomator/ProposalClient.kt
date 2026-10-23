@@ -3,7 +3,7 @@ package org.aief.personalautomator
 import org.json.JSONObject
 import java.net.HttpURLConnection
 
-/** No redirects, persistence, screen data or provider API keys. One foreground request. */
+/** No redirects, persistence or screen data. One foreground request. */
 class ProposalClient {
     @Volatile private var connection: HttpURLConnection? = null
     @Volatile private var cancelled = false
@@ -43,7 +43,7 @@ class ProposalClient {
                 val choice = choices.getJSONObject(0)
                 require(choice.getString("finish_reason") == "stop")
                 val message = choice.getJSONObject("message")
-                require(!message.has("tool_calls") && !message.has("function_call"))
+                require(message.isNull("tool_calls") && message.isNull("function_call"))
                 require(message.isNull("refusal"))
                 JSONObject(message.getString("content"))
             } else response
