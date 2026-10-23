@@ -5,16 +5,20 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v crontab >/dev/null || { echo 'Install cronie first' >&2; exit 1; }
 command -v flock >/dev/null || { echo 'Install util-linux first' >&2; exit 1; }
-mkdir -p "$HOME/.termux/boot"
+mkdir -p "$HOME/.termux/boot" "$HOME/.local/state/toolz-backup"
 # This boot hook requires the separate Termux:Boot Android app.
 boot="$HOME/.termux/boot/20-toolz-backup-catchup"
+if [[ -f "$boot" ]]; then cp -p "$boot" "$boot.bak.$(date +%Y%m%d_%H%M%S)"; fi
 cat > "$boot" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
 export PATH="/data/data/com.termux/files/usr/bin:/data/data/com.termux/files/usr/bin/applets:\$PATH"
+mkdir -p "\$HOME/.local/state/toolz-backup"
+echo "\$(date -Is) Termux:Boot hook executed" >> "\$HOME/.local/state/toolz-backup/boot.log"
 pgrep -x crond >/dev/null 2>&1 || crond
-"$HERE/check_missed_backups.sh" >/dev/null 2>&1 &
+/data/data/com.termux/files/usr/bin/bash "$HERE/check_missed_backups.sh" >> "\$HOME/.local/state/toolz-backup/boot.log" 2>&1 &
 EOF
 chmod 700 "$boot"
+bash -n "$boot"
 line="*/15 * * * * $PREFIX/bin/bash \"$HERE/check_missed_backups.sh\""
 current="$(crontab -l 2>/dev/null || true)"
 if ! grep -Fq 'check_missed_backups.sh' <<<"$current"; then
