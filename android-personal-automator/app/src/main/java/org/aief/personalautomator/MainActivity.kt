@@ -112,7 +112,7 @@ class MainActivity : Activity() {
         endpoint = field("Trusted server HTTPS URL, ending /proposal", 2048)
         token = field("Server access token (not an OpenAI API key)", 512, true)
         task = field("Task to send (up to 2000 characters)", 2000)
-        model = field("OmniRoute model or combo ID (from your dashboard)", 200)
+        model = field("Model override (optional; auto lets OmniRoute choose)", 200).apply { setText("auto") }
         localRoute = CheckBox(this).apply {
             text = "Use OmniRoute running on this tablet"
             isSaveEnabled = false

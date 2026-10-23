@@ -11,7 +11,8 @@ class ProposalClient {
     fun request(endpoint: String, token: String, task: String, localRoute: Boolean = false, model: String = ""): Pair<String, String> {
         require(task.isNotBlank() && task.length <= 2000 && token.length in (if (localRoute) 1..512 else 32..512))
         require(token.all { it.code in 33..126 })
-        val target = ProviderEndpoint.target(endpoint, localRoute, model)
+        val selectedModel = if (localRoute) model.trim().ifBlank { "auto" } else model
+        val target = ProviderEndpoint.target(endpoint, localRoute, selectedModel)
         val conn = target.openConnection() as HttpURLConnection
         connection = conn
         try {
@@ -23,7 +24,7 @@ class ProposalClient {
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")
             conn.setRequestProperty("Authorization", "Bearer $token")
-            val body = if (localRoute) JSONObject().put("model", model).put("stream", false)
+            val body = if (localRoute) JSONObject().put("model", selectedModel).put("stream", false)
                 .put("max_tokens", 1200).put("messages", org.json.JSONArray()
                     .put(JSONObject().put("role", "system").put("content",
                         "You propose actions for a supervised Android demo. The ONLY supported action is OPEN_DEMO, " +
