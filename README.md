@@ -1,5 +1,9 @@
 # toolz — Termux + Andronix Debian Multi-Session AI Workspace
 
+> Android integration issue #10: see the [baseline, test receipts, security review,
+> and remaining device gates](docs/ISSUE10_VERIFICATION.md). End-to-end physical
+> device acceptance is not yet complete.
+
 Automated multi-agent terminal workspace for **Termux + Andronix Debian (`proot`)** on Android. Includes dedicated `start-debian` launcher scripts to launch **1, 2, or 3 AI sessions** in an orientation-aware (non-overlapping) `tmux` workspace:
 
 - **[`scripts/start-debian-1.sh`](scripts/start-debian-1.sh)** (**1 Session**):
