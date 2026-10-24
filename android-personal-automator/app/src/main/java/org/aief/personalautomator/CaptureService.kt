@@ -73,6 +73,7 @@ class CaptureService : Service() {
             intent.removeExtra("consent")
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             val granted = manager.getMediaProjection(Activity.RESULT_OK, consent)
+                ?: error("Projection unavailable")
             projection = granted
             granted.registerCallback(callback, handler)
             // <= 1024 x 1024 RGBA pixels; two reader buffers.
