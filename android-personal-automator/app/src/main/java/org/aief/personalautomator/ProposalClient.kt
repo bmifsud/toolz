@@ -34,7 +34,8 @@ class ProposalClient {
                     .put(JSONObject().put("role", "user").put("content", task))).toString()
                 else JSONObject().put("task", task).put("version", 1).toString()
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            check(conn.responseCode == 200)
+            val status = conn.responseCode
+            if (status != 200) throw httpFailure(status)
             val bytes = conn.inputStream.use { it.readBytesLimited(if (localRoute) 262144 else 8192) }
             check(!cancelled)
             val response = JSONObject(String(bytes, Charsets.UTF_8))

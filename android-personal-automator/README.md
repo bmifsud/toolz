@@ -2,12 +2,12 @@
 
 Implements toolz issue #2 in draft PR #1. Native Kotlin UI with an optional authenticated HTTPS AI proposal bridge. No unattended automation, screen reading, gesture injection, GitHub writes, or automatic deployment.
 
-## Local OmniRoute on your Android tablet (0.3.1)
+## Local OmniRoute on your Android tablet (0.4.0)
 
 No Render service or bridge is needed when OmniRoute runs on the same tablet.
 
 1. Keep OmniRoute running at `http://localhost:20128`.
-2. Install the 0.3.1 APK, acknowledge the disclosure, enable the service, and arm.
+2. Install the 0.4.0 APK, acknowledge the disclosure, enable the service, and arm.
 3. Leave **Use OmniRoute running on this tablet** checked (the default).
 4. Enter an OmniRoute inference token. Leave the model as `auto` (the default); blank also uses `auto`. OmniRoute chooses the provider/model. An exact model/combo ID remains available as an optional override.
 5. Type `Open the demo PR`, send, review, and explicitly approve or reject.
@@ -15,7 +15,7 @@ No Render service or bridge is needed when OmniRoute runs on the same tablet.
 Only the app-to-OmniRoute loopback hop uses HTTP; only localhost/127.0.0.1 on port
 20128 with the `/v1/chat/completions` path is accepted. Other app connections require
 HTTPS. OmniRoute may forward your typed task to its upstream providers. Tokens are
-kept in memory, not saved in app state or preferences. No screen content is sent.
+saved encrypted with Android Keystore and never restored into visible/editable UI fields. No screen content is sent.
 The app does not start OmniRoute or discover its credentials automatically. Automatic model routing is delegated to OmniRoute using its documented `auto` model; the app does not select a provider or create combos.
 Unknown actions, tool calls, truncated output and malformed proposals are rejected.
 Changing connection modes discards pending requests and approval.
@@ -40,8 +40,7 @@ and separately configured provider API access are required; installing the APK d
 Only `OPEN_DEMO` and `NONE` are accepted. Extra fields, arbitrary URLs,
 unknown actions, redirects, oversized responses and failed requests are rejected.
 Pause, Stop, service replacement, backgrounding, rotation, rejection and a new request
-invalidate pending work; resume/rearm never restores approval. Tokens and typed tasks
-are not saved by the app. A cancelled request may already have reached the server/provider;
+invalidate pending work; resume/rearm never restores approval. Connection settings, task text and tokens are persisted encrypted; authorization and proposals are not. A cancelled request may already have reached the server/provider;
 cancellation prevents local approval and execution but cannot undo transmission.
 No screenshots, accessibility nodes, account data, or audit are sent.
 Provider/server privacy and retention policies still apply.
@@ -55,6 +54,38 @@ Provider/server privacy and retention policies still apply.
   background, rotate, cancel, and submit a new task; stale responses never enable approval.
 - Instructions proposing taps, shell commands or a different URL fail the local policy.
 - Existing fixed-URL controls still work. HTTPS networking and lifecycle need device testing.
+
+## Saved connections and diagnostics (0.4.0)
+
+Enter a token once and tap **Save connection securely** (Send and Test also save).
+Mode, endpoint, model override, task draft and token are saved as an AES-256-GCM
+record with a random IV and an Android Keystore key. The app restores settings but
+leaves the token field empty: a blank token field uses the saved token. A new token
+replaces it. **Forget saved connection and token** removes the current profile.
+Valid edits are also saved when leaving the app if no save/request is in progress.
+
+Local and HTTPS bridge profiles are isolated. Changing the bridge destination drops
+the previous token rather than forwarding it. Encrypted preferences are excluded
+from cloud backup/device transfer. Uninstalling, clearing app data or losing the
+Keystore key requires re-entering credentials. Existing in-memory tokens from older
+versions cannot be recovered after uninstall/process termination.
+
+Tokens are never displayed, copied into settings summaries, logged, or sent to this
+ChatGPT conversation. The app necessarily decrypts the API token briefly to authenticate
+an authorized request; encryption does not make an API bearer token non-exportable
+inside a compromised app process. This is local credential use, not remote control
+from ChatGPT. Session consent, arming, pending requests and approval are never restored.
+
+**Test saved connection (no action)** sends a fixed diagnostic task while the session
+is READY. It validates authentication and proposal output but never authorizes an
+execution. Errors distinguish reachability, timeout, HTTP authentication/permission,
+quota, endpoint/model and malformed output without including server bodies or secrets.
+
+CI runs Android 16 emulator integration tests using synthetic tokens: Keystore
+persistence/replacement/deletion, tamper rejection, destination binding, UI recreation
+without token/consent restoration, and an actual HTTP request to a fake local route
+that verifies authentication and `model: auto`. This does not test your real OmniRoute
+providers or tablet hardware. Use the diagnostic button to verify those locally.
 
 ## Build
 
