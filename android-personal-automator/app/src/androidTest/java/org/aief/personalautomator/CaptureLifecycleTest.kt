@@ -44,14 +44,18 @@ class CaptureLifecycleTest {
     }
 
     @Test fun recreationDoesNotRestoreCaptureOwnership() {
-        ActivityScenario.launch(CaptureActivity::class.java).use { scenario ->
-            // ActivityScenario.recreate() waits for RESUMED, but this activity
-            // intentionally finishes when recreated with saved state.
-            scenario.onActivity { activity -> activity.recreate() }
-            scenario.moveToState(Lifecycle.State.DESTROYED)
-            instrumentation.waitForIdleSync()
-            assertCleared()
+        val scenario = ActivityScenario.launch(CaptureActivity::class.java)
+        var original: CaptureActivity? = null
+        scenario.onActivity { activity ->
+            original = activity
+            assertSame(activity, CaptureActivity.current)
+            activity.recreate()
         }
+        instrumentation.waitForIdleSync()
+        runCatching { scenario.close() }
+        instrumentation.waitForIdleSync()
+        assertCleared()
+        original?.let { assertTrue(it.isFinishing || it.isDestroyed) }
     }
 
     @Test fun explicitInvalidationIsIdempotent() {
