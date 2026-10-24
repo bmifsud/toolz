@@ -1,6 +1,13 @@
 # Android Personal Automator — supervised POC
 
-Implements toolz issue #2 in draft PR #1. Native Kotlin UI with an optional authenticated HTTPS AI proposal bridge. No unattended automation, screen reading, gesture injection, GitHub writes, or automatic deployment.
+Implements toolz issue #2 in draft PR #1. Native Kotlin UI with an optional authenticated HTTPS AI proposal bridge. No unattended automation, gesture injection, GitHub writes, or automatic deployment.
+
+## Opt-in local screenshot inspection
+
+[One-shot MediaProjection capture](CAPTURE.md) adds explicit OS consent, a visible
+foreground notification with STOP, and a short-lived memory-only preview. No screen
+content is transmitted to AI or saved. Android 14–16 physical-device checks remain
+pending; this is not complete issue #10 end-to-end acceptance.
 
 ## Local OmniRoute on your Android tablet (0.4.0)
 

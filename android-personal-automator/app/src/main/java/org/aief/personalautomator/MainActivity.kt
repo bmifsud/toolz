@@ -155,6 +155,15 @@ class MainActivity : Activity() {
             if (consent.isChecked) DemoAccessibilityService.instance?.arm()
             refresh()
         }
+        layout.addView(Button(this).apply {
+            text = "Inspect one screenshot locally"
+            setOnClickListener {
+                discardProposal()
+                if (DemoAccessibilityService.instance?.session?.state == SessionState.READY) {
+                    startActivity(Intent(this@MainActivity, CaptureActivity::class.java))
+                } else status.text = "Arm the supervised session before requesting capture."
+            }
+        })
         demo = button(R.string.open_demo) { DemoAccessibilityService.instance?.openDemo() }
         pause = button(R.string.pause) { DemoAccessibilityService.instance?.pause() }
         resume = button(R.string.resume) { DemoAccessibilityService.instance?.resume() }

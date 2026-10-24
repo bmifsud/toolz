@@ -52,6 +52,7 @@ class DemoAccessibilityService : AccessibilityService() {
 
     fun pause() {
         session.pause()
+        CaptureActivity.invalidate()
         cancelPulse()
         update()
     }
@@ -64,6 +65,7 @@ class DemoAccessibilityService : AccessibilityService() {
 
     fun stop() {
         session.stop()
+        CaptureActivity.invalidate()
         cancelPulse()
         panel?.let { try { windows.removeViewImmediate(it) } catch (_: RuntimeException) { } }
         panel = null
