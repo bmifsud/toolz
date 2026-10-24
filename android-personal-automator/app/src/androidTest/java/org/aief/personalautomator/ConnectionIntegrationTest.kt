@@ -23,8 +23,14 @@ class ConnectionIntegrationTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val address = "http://localhost:20128/v1"
     private val fakeToken = "synthetic-test-token-DO-NOT-USE"
-    @Before fun clean() { ConnectionVault(context).apply { forget(true); forget(false) } }
-    @After fun cleanup() { clean() }
+    @Before fun clean() {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        ConnectionVault(context).apply { forget(true); forget(false) }
+    }
+    @After fun cleanup() {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        clean()
+    }
 
     @Test fun encryptedPersistenceReuseReplacementAndForget() {
         val first = ConnectionVault(context)
@@ -172,5 +178,6 @@ class ConnectionIntegrationTest {
             scenario.recreate()
             assertRestored()
         }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 }
