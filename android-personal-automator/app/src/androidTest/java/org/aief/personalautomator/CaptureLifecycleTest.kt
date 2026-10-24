@@ -45,7 +45,10 @@ class CaptureLifecycleTest {
 
     @Test fun recreationDoesNotRestoreCaptureOwnership() {
         ActivityScenario.launch(CaptureActivity::class.java).use { scenario ->
-            scenario.recreate()
+            // ActivityScenario.recreate() waits for RESUMED, but this activity
+            // intentionally finishes when recreated with saved state.
+            scenario.onActivity { activity -> activity.recreate() }
+            scenario.moveToState(Lifecycle.State.DESTROYED)
             instrumentation.waitForIdleSync()
             assertCleared()
         }
