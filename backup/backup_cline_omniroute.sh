@@ -44,7 +44,11 @@ if [ "$MODE" = "--restore" ]; then
   fi
 
   echo "[1/4] Decrypting and extracting backup archive..."
-  gpg --decrypt "$ARCHIVE_PATH" | tar -xzp -C "$WORK_DIR"
+  if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
+    gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --decrypt "$ARCHIVE_PATH" | tar -xzp -C "$WORK_DIR"
+  else
+    gpg --decrypt "$ARCHIVE_PATH" | tar -xzp -C "$WORK_DIR"
+  fi
 
   echo "[2/4] Restoring Cline CLI global state, MCP settings, and chmod 600 secrets..."
   mkdir -p ~/.cline/data/settings
@@ -118,7 +122,7 @@ done
 echo "[4/5] Compressing and encrypting archive (AES-256) to $ANDROID_OUT..."
 OUT_FILE="$ANDROID_OUT/cline_omniroute_backup_${TIMESTAMP}.tar.gz.gpg"
 if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
-  tar -czp -C "$WORK_DIR" . | gpg --batch --yes --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 -o "$OUT_FILE"
+  tar -czp -C "$WORK_DIR" . | gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 -o "$OUT_FILE"
 else
   tar -czp -C "$WORK_DIR" . | gpg --symmetric --cipher-algo AES256 -o "$OUT_FILE"
 fi
