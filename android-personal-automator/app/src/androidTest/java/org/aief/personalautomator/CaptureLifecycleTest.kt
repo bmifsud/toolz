@@ -115,7 +115,7 @@ class CaptureLifecycleTest {
         ActivityScenario.launch(CaptureActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
                 // No consent Intent, no permission grant and no MediaProjection call.
-                activity.startForegroundService(Intent(activity, CaptureService::class.java))
+                activity.startService(Intent(activity, CaptureService::class.java))
             }
             awaitServiceRevocation()
         }

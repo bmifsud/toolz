@@ -130,6 +130,13 @@ The checklist supplies read-only dumps and debug `run-as` inventory commands.
 
 ## Fixes and verification in this PR
 
+- Start the service from the visible consent activity with `startService`, then
+  immediately promote it to a mediaProjection foreground service before acquiring
+  a projection. Android background-start restrictions still apply. The first PR
+  emulator run exposed a process crash when `startForegroundService` was followed
+  by notification/promotion rejection and shutdown without promotion. Removing
+  that outstanding foreground-start promise lets rejection stop cleanly. No
+  capture occurs without successful foreground promotion and real OS consent.
 - Revoke capture activity ownership immediately when foreground startup fails
   (for example, blocked notifications) or a service start has no authorization,
   rather than leaving it until the activity timeout.

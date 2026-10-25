@@ -90,7 +90,10 @@ class CaptureActivity : Activity() {
         handler.removeCallbacks(timeout)
         handler.postDelayed(timeout, 10000)
         try {
-            startForegroundService(Intent(this, CaptureService::class.java)
+            // Start only from the visible consent activity. The service immediately promotes
+            // itself after checking notifications. A denied promotion can then stop cleanly,
+            // without an outstanding startForegroundService promise crashing the process.
+            startService(Intent(this, CaptureService::class.java)
                 .putExtra("consent", data))
         } catch (_: RuntimeException) { cancel() }
     }
