@@ -42,7 +42,7 @@ class CaptureService : Service() {
         if (closed) return
         closed = true
         handler.removeCallbacksAndMessages(null)
-        reader?.setOnImageAvailableListener(null, null)
+        runCatching { reader?.setOnImageAvailableListener(null, null) }
         runCatching { display?.release() }; display = null
         runCatching { reader?.close() }; reader = null
         projection?.let { runCatching { it.unregisterCallback(callback) }; runCatching { it.stop() } }
@@ -59,12 +59,18 @@ class CaptureService : Service() {
     }
     override fun onBind(intent: Intent?) = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A queued start must not resurrect a service already being torn down.
+        if (closed) { stopSelf(); return START_NOT_STICKY }
         if (intent?.action == "STOP") {
             CaptureActivity.invalidate(); shutdown(); return START_NOT_STICKY
         }
-        try { foreground() } catch (_: RuntimeException) { shutdown(); return START_NOT_STICKY }
+        try { foreground() } catch (_: RuntimeException) {
+            CaptureActivity.invalidate(); shutdown(); return START_NOT_STICKY
+        }
         val activity = CaptureActivity.current
-        if (used || activity?.authorized() != true) { shutdown(); return START_NOT_STICKY }
+        if (used || activity?.authorized() != true) {
+            CaptureActivity.invalidate(); shutdown(); return START_NOT_STICKY
+        }
         used = true
         active = this
         try {
