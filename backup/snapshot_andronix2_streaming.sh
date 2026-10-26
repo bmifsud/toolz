@@ -31,7 +31,7 @@ case "$MODE" in
     # Keep the descriptor open until the script exits.
     exec 9>"$SNAP_DIR/.tier2-snapshot.lock"
     flock -n 9 || fail 'Another Tier-2 snapshot is already running'
-    name="andronix-debian-$(date +%Y%m%d_%H%M%S).tar.gz.gpg"
+    name="andronix-debian-$(date +%Y%m%d_%H%M%S)-$(python3 -c 'import secrets; print(secrets.token_hex(12))').tar.gz.gpg"
     out="$SNAP_DIR/$name"
     [[ ! -e "$out" ]] || fail 'Archive already exists'
     partial="$out.partial"
@@ -70,13 +70,13 @@ case "$MODE" in
       if printf '%s\n' "$remote_listing" | grep -Fxq -- "$name.uploading"; then
         fail 'Staged cloud object already exists; retain local archive'
       fi
-      rclone copyto "$out" "$remote_partial"
+      rclone copyto --immutable "$out" "$remote_partial"
       local_hash="$(sha256sum "$out" | awk '{print $1}')"
       remote_hash="$(rclone cat "$remote_partial" | sha256sum | awk '{print $1}')"
       [[ "$local_hash" == "$remote_hash" ]] || fail 'Staged cloud SHA256 mismatch; retain local archive'
       # rclone moveto is not atomic on all remotes. Verify the final name
       # again before deleting the local copy.
-      rclone moveto "$remote_partial" "$remote_final"
+      rclone moveto --immutable "$remote_partial" "$remote_final"
       final_hash="$(rclone cat "$remote_final" | sha256sum | awk '{print $1}')"
       [[ "$local_hash" == "$final_hash" ]] || fail 'Published cloud SHA256 mismatch; retain local archive'
       echo "PASS: Published cloud SHA256 verified: $name"
