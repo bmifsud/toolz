@@ -7,12 +7,42 @@ import pytest
 
 SCRIPT=Path(__file__).resolve().parents[1]/'backup_cline_omniroute.sh'
 
+@pytest.mark.parametrize('use_tmpdir', [True, False])
+def test_private_portable_temp_directory(sandbox, tmp_path, use_tmpdir):
+    d,home,_,_,mock=sandbox
+    base=tmp_path/'termux-tmp';base.mkdir(mode=0o700)
+    if use_tmpdir:
+        d['TMPDIR']=str(base)
+    else:
+        d.pop('TMPDIR', None)
+    # Reject /tmp even on Debian, and inspect the allocated directory before cleanup.
+    import shutil
+    import shlex
+    real=shlex.quote(shutil.which('mktemp'))
+    record=tmp_path/'temp-record'
+    mock('mktemp', f'''case "$*" in *'/tmp/cline_omni_backup.'*) exit 73;; esac
+p=$({real} "$@") || exit $?
+printf '%s\\n' "$p" > '{record}'
+stat -c '%a' "$p" >> '{record}'
+printf secret > "$p/probe"
+stat -c '%a' "$p/probe" >> '{record}'
+printf '%s\\n' "$p"''')
+    result=run(sandbox,'--restore',str(tmp_path/'missing.gpg'))
+    assert result.returncode != 0
+    assert record.exists(), result.stderr
+    directory,mode,file_mode=record.read_text().splitlines()
+    assert Path(directory).parent == (base if use_tmpdir else home)
+    assert mode == '700'
+    assert file_mode == '600'
+    assert not Path(directory).exists()
+
+
 @pytest.fixture
-def sandbox(tmp_path):
+def sandbox(tmp_path, short_gnupg_home):
     home=tmp_path/'home';home.mkdir()
     workspace=tmp_path/'workspace';workspace.mkdir()
     bins=tmp_path/'bin';bins.mkdir()
-    gnupg=tmp_path/'gnupg';gnupg.mkdir(mode=0o700)
+    gnupg=short_gnupg_home
     (home/'.omniroute').mkdir()
     conn=sqlite3.connect(home/'.omniroute'/'storage.sqlite')
     conn.execute('CREATE TABLE state (value TEXT)')

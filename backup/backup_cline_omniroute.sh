@@ -21,7 +21,11 @@ fi
 GDRIVE_REMOTE="gdrive:ClineOmniRouteBackups"
 mkdir -p "$ANDROID_OUT"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-WORK_DIR=$(mktemp -d /tmp/cline_omni_backup.XXXXXX)
+# Private staging also protects copied secrets and SQLite exports.
+umask 077
+# Termux supplies TMPDIR; HOME is a portable fallback when it is unset.
+# Fail closed if the selected location cannot allocate a private directory.
+WORK_DIR=$(mktemp -d "${TMPDIR:-$HOME}/cline_omni_backup.XXXXXX")
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 MODE="${1:-backup}"

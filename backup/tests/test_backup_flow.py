@@ -7,7 +7,7 @@ import pytest
 ROOT=Path(__file__).resolve().parents[1]
 
 @pytest.fixture
-def env(tmp_path):
+def env(tmp_path, short_gnupg_home):
     home=tmp_path/'home';home.mkdir()
     bins=tmp_path/'bin';bins.mkdir()
     (home/'debian-fs').mkdir()
@@ -15,7 +15,7 @@ def env(tmp_path):
     (home/'start-debian.sh').write_text('#!/bin/sh\n')
     snaps=tmp_path/'snapshots';snaps.mkdir()
     pw=tmp_path/'password';pw.write_text('test-password');pw.chmod(0o600)
-    gnupg=tmp_path/'gnupg';gnupg.mkdir(mode=0o700)
+    gnupg=short_gnupg_home
     d=os.environ.copy()
     d.update(HOME=str(home),PATH=str(bins)+':'+d['PATH'],
              GNUPGHOME=str(gnupg),BACKUP_PASSPHRASE_FILE=str(pw),
