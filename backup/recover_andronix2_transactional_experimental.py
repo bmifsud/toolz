@@ -6,11 +6,33 @@ Only successful extraction is renamed to the requested final directory.
 No cleanup, live-rootfs restore, GPG or cloud integration is provided.
 """
 import argparse
+import ctypes
+import errno
 import os
 from pathlib import Path
 import secrets
 
 from backup.extract_andronix2_isolated_experimental import extract
+
+
+def publish_noreplace(staging, final):
+    """Linux renameat2(RENAME_NOREPLACE); fail closed if unavailable."""
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise NotImplementedError("renameat2 is required for safe publication")
+    renameat2.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+                          ctypes.c_char_p, ctypes.c_uint]
+    renameat2.restype = ctypes.c_int
+    parentfd = os.open(staging.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        result = renameat2(parentfd, os.fsencode(staging.name),
+                           parentfd, os.fsencode(final.name), 1)  # RENAME_NOREPLACE
+        if result:
+            err = ctypes.get_errno()
+            raise OSError(err, os.strerror(err), str(final))
+    finally:
+        os.close(parentfd)
 
 
 def recover_synthetic(archive, destination):
@@ -26,11 +48,8 @@ def recover_synthetic(archive, destination):
     except BaseException:
         # Retain incomplete staging for manual review; never advertise success.
         raise
-    # No replacement of existing destination. On POSIX rename is atomic when
-    # on the same filesystem; this is not a durable fsync or race-proof publish.
-    if final.exists() or final.is_symlink():
-        raise FileExistsError("final destination appeared during extraction")
-    os.rename(staging, final)
+    # Atomic no-overwrite publication on Linux. Still not crash-durable.
+    publish_noreplace(staging, final)
     return count
 
 
