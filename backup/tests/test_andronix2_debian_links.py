@@ -48,6 +48,10 @@ class ValidatorTests(unittest.TestCase):
             tar.addfile(launcher)
         self.assertEqual(run(buffer.getvalue()).returncode, 0)
 
+    def test_systemd_escaped_filename(self):
+        name = ROOT + "/usr/lib/systemd/system/system-systemd\\x2dcryptsetup.slice"
+        self.assertEqual(run(archive_bytes([name])).returncode, 0)
+
     def test_reject_parent_traversal(self):
         self.assertNotEqual(run(archive_bytes([ROOT + "/../outside"])).returncode, 0)
 
