@@ -192,3 +192,38 @@ def test_failed_cloud_lsf_operation(retention_sandbox):
     assert (local_dir / names[0]).exists()
 
 
+
+
+def test_runner_inherited_lock(retention_sandbox):
+    import fcntl
+    d, local_dir, _, state_dir = retention_sandbox
+    fd = os.open(state_dir / 'backup.lock', os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        d['TIER1_RETENTION_INHERITED_LOCK'] = '9'
+        (local_dir / 'cline_omniroute_backup_20260101_000000.tar.gz.gpg').write_text('keep')
+        result = subprocess.run(
+            ['bash', '-c', 'exec 9<&$1; shift; exec bash "$@"', 'bash',
+             str(fd), str(SCRIPT), '--apply'],
+            env=d, capture_output=True, text=True, timeout=30, pass_fds=(fd,))
+        assert result.returncode == 0, result.stderr
+    finally:
+        os.close(fd)
+
+
+def test_inherited_lock_mismatch_fails_closed(retention_sandbox):
+    import fcntl
+    d, _, _, state_dir = retention_sandbox
+    fd = os.open(state_dir / 'backup.lock', os.O_RDWR | os.O_CREAT, 0o600)
+    other = os.open(state_dir / 'other.lock', os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        d['TIER1_RETENTION_INHERITED_LOCK'] = '9'
+        result = subprocess.run(
+            ['bash', '-c', 'exec 9<&$1; shift; exec bash "$@"', 'bash',
+             str(other), str(SCRIPT), '--apply'],
+            env=d, capture_output=True, text=True, timeout=30, pass_fds=(other,))
+        assert result.returncode == 75
+    finally:
+        os.close(other)
+        os.close(fd)
