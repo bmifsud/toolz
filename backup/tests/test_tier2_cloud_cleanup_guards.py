@@ -20,7 +20,7 @@ class CloudCleanupSafetyTests(unittest.TestCase):
 
     def test_staging_and_published_hash_verification_precede_deletion(self):
         stage = self.cloud.index('[[ "$local_hash" == "$remote_hash" ]]')
-        publish = self.cloud.index('rclone moveto "$remote_partial" "$remote_final"')
+        publish = self.cloud.index('rclone moveto --immutable "$remote_partial" "$remote_final"')
         final = self.cloud.index('[[ "$local_hash" == "$final_hash" ]]')
         delete = self.cloud.index('rm -- "$out"')
         self.assertLess(stage, publish)
@@ -33,7 +33,7 @@ class CloudCleanupSafetyTests(unittest.TestCase):
 
     def test_upload_is_staged_before_publication(self):
         self.assertIn('remote_partial="$REMOTE/$name.uploading"', self.cloud)
-        self.assertIn('rclone copyto "$out" "$remote_partial"', self.cloud)
+        self.assertIn('rclone copyto --immutable "$out" "$remote_partial"', self.cloud)
         self.assertIn('rclone cat "$remote_final"', self.cloud)
 
 
