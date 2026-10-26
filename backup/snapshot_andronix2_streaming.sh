@@ -12,7 +12,7 @@ MODE="${1:---preflight}"
 [[ -d "$ROOTFS_DIR" && -f "$START_SCRIPT" ]] || fail 'Rootfs or launcher missing'
 [[ "$ROOTFS_DIR" == "$HOME/.andronix/distros/debian/rootfs" ]] || fail 'Unexpected rootfs path'
 [[ "$START_SCRIPT" == "$HOME/start-debian.sh" ]] || fail 'Unexpected launcher path'
-for c in tar gpg rclone sha256sum python3; do command -v "$c" >/dev/null || fail "Missing $c"; done
+for c in tar gpg rclone sha256sum python3 flock; do command -v "$c" >/dev/null || fail "Missing $c"; done
 if pgrep -f '[p]root.*debian' >/dev/null; then fail 'Stop Debian before snapshot'; fi
 [[ ! -L "$ROOTFS_DIR" ]] || fail 'Rootfs must not be symlink'
 case "$MODE" in
@@ -27,6 +27,10 @@ case "$MODE" in
     [[ "$(stat -c %a "$BACKUP_PASSPHRASE_FILE")" == 600 ]] || fail 'Passphrase file must be chmod 600'
     [[ ! -L "$BACKUP_PASSPHRASE_FILE" ]] || fail 'Passphrase file must not be a symlink'
     mkdir -p "$SNAP_DIR"
+    # Serialize backup producers on this device, including across timestamp collisions.
+    # Keep the descriptor open until the script exits.
+    exec 9>"$SNAP_DIR/.tier2-snapshot.lock"
+    flock -n 9 || fail 'Another Tier-2 snapshot is already running'
     name="andronix-debian-$(date +%Y%m%d_%H%M%S).tar.gz.gpg"
     out="$SNAP_DIR/$name"
     [[ ! -e "$out" ]] || fail 'Archive already exists'
@@ -55,9 +59,16 @@ case "$MODE" in
       # on every failure, including failed verification and publication.
       remote_partial="$REMOTE/$name.uploading"
       remote_final="$REMOTE/$name"
-      if rclone lsf "$remote_final" >/dev/null 2>&1 &&
-         [[ -n "$(rclone lsf "$remote_final" 2>/dev/null)" ]]; then
+      # An existence probe must distinguish missing objects from API errors.
+      # rclone lsjson --stat exits nonzero when the object is missing.
+      # Listing the parent is required to fail closed on authorization/network errors.
+      remote_listing="$(rclone lsf "$REMOTE" --files-only)" ||
+        fail 'Cannot list cloud destination; retain local archive'
+      if printf '%s\n' "$remote_listing" | grep -Fxq -- "$name"; then
         fail 'Final cloud object already exists; retain local archive'
+      fi
+      if printf '%s\n' "$remote_listing" | grep -Fxq -- "$name.uploading"; then
+        fail 'Staged cloud object already exists; retain local archive'
       fi
       rclone copyto "$out" "$remote_partial"
       local_hash="$(sha256sum "$out" | awk '{print $1}')"
