@@ -23,6 +23,8 @@ def fixture(path, extra=()):
             info.type = kind
             info.linkname = target
             info.size = 0
+            if kind == tarfile.DIRTYPE:
+                info.mode = 0o755  # Real Debian directory entries carry searchable permissions.
             tf.addfile(info, io.BytesIO())
 
 
