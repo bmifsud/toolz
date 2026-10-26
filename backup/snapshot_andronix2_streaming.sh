@@ -42,6 +42,7 @@ case "$MODE" in
       --exclude='.andronix/distros/debian/rootfs/tmp' \
       --exclude='.andronix/distros/debian/rootfs/run' \
       --exclude='.andronix/distros/debian/rootfs/var/cache/apt/archives' \
+      --exclude='.andronix/distros/debian/rootfs/home/b/.gnupg/S.gpg-agent*' \
       .andronix/distros/debian/rootfs start-debian.sh \
       | gpg --batch --yes --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --symmetric --cipher-algo AES256 --output "$partial"
     [[ -s "$partial" ]] || fail 'Empty archive'
