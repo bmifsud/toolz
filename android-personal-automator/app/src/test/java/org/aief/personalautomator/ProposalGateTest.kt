@@ -7,38 +7,45 @@ class ProposalGateTest {
     @Test fun requiresReadyAndExactSupportedAction() {
         val session = SessionController()
         val gate = ProposalGate()
-        assertFalse(gate.offer("OPEN_DEMO", session))
+        val demoProposal = TaskProposal(TaskCategory.DEVICE_ACTION, Capability.OPEN_DEMO, "Open demo")
+        val unsupportedProposal = TaskProposal(TaskCategory.UNSUPPORTED, Capability.UNSUPPORTED, "Unsupported")
+        assertFalse(gate.offer(demoProposal, session))
         session.arm()
-        assertFalse(gate.offer("TAP", session))
-        assertFalse(gate.consume(session))
-        assertTrue(gate.offer("OPEN_DEMO", session))
-        assertTrue(gate.consume(session))
-        assertFalse(gate.consume(session))
+        assertFalse(gate.offer(unsupportedProposal, session))
+        assertNull(gate.consume(session))
+        assertTrue(gate.offer(demoProposal, session))
+        assertNotNull(gate.consume(session))
+        assertNull(gate.consume(session))
     }
     @Test fun pauseResumeInvalidatesApproval() {
         val session = SessionController().apply { arm() }
         val gate = ProposalGate()
-        gate.offer("OPEN_DEMO", session)
+        val demoProposal = TaskProposal(TaskCategory.DEVICE_ACTION, Capability.OPEN_DEMO, "Open demo")
+        gate.offer(demoProposal, session)
         session.pause()
         session.resume()
-        assertFalse(gate.consume(session))
+        assertNull(gate.consume(session))
     }
     @Test fun stopAndRearmInvalidatesApproval() {
         val session = SessionController().apply { arm() }
         val gate = ProposalGate()
-        gate.offer("OPEN_DEMO", session)
+        val demoProposal = TaskProposal(TaskCategory.DEVICE_ACTION, Capability.OPEN_DEMO, "Open demo")
+        gate.offer(demoProposal, session)
         session.stop()
         session.arm()
-        assertFalse(gate.consume(session))
+        assertNull(gate.consume(session))
     }
     @Test fun rejectAndUnsupportedReplacementClearApproval() {
         val session = SessionController().apply { arm() }
         val gate = ProposalGate()
-        gate.offer("OPEN_DEMO", session)
+        val demoProposal = TaskProposal(TaskCategory.DEVICE_ACTION, Capability.OPEN_DEMO, "Open demo")
+        val unsupportedProposal = TaskProposal(TaskCategory.UNSUPPORTED, Capability.UNSUPPORTED, "Unsupported")
+        gate.offer(demoProposal, session)
         gate.clear()
-        assertFalse(gate.consume(session))
-        gate.offer("OPEN_DEMO", session)
-        gate.offer("NONE", session)
-        assertFalse(gate.consume(session))
+        assertNull(gate.consume(session))
+        gate.offer(demoProposal, session)
+        gate.offer(unsupportedProposal, session)
+        assertNull(gate.consume(session))
     }
 }
+

@@ -1,9 +1,31 @@
 package org.aief.personalautomator
 
 const val DEMO_URL = "https://github.com/bmifsud/POC-ARTRIOUT/pull/299"
-
-enum class Capability { OPEN_DEMO }
 enum class SessionState { STOPPED, READY, PAUSED }
+
+enum class Capability(val requiresApproval: Boolean) {
+    OPEN_DEMO(true),
+    ANSWER(false),
+    READ_UPTIME(false),
+    RUN_TESTS(true),
+    UNSUPPORTED(false)
+}
+
+enum class TaskCategory {
+    ANSWER,
+    READ_ONLY,
+    DEVELOPMENT,
+    DEVICE_ACTION,
+    UNSUPPORTED
+}
+
+data class TaskProposal(
+    val category: TaskCategory,
+    val action: Capability,
+    val explanation: String,
+    val command: String = "",
+    val requiresApproval: Boolean = action.requiresApproval
+)
 
 /** Main-thread session policy. No persistence: process/service recreation fails closed. */
 class SessionController {
@@ -45,7 +67,7 @@ class SessionController {
     }
 
     fun authorize(action: Capability): Boolean {
-        val allowed = state == SessionState.READY && action == Capability.OPEN_DEMO
+        val allowed = state == SessionState.READY
         record("${action.name}: ${if (allowed) "authorized" else "denied"}")
         return allowed
     }

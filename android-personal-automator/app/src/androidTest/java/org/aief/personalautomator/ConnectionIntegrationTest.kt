@@ -115,7 +115,7 @@ class ConnectionIntegrationTest {
             assertFalse(worker.isAlive)
             assertTrue(receivedAuth.get())
             assertTrue(receivedAuto.get())
-            assertEquals("NONE", response.first)
+            assertEquals(Capability.UNSUPPORTED, response.action)
         }
     }
 
