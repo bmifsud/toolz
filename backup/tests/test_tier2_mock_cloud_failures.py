@@ -21,7 +21,13 @@ def path(remote):
 failure = os.environ.get("FAKE_FAILURE", "")
 if cmd == "lsf":
     p = path(args[0])
-    if p.exists():
+    if failure == "list":
+        sys.exit(17)
+    if p.is_dir():
+        for item in p.iterdir():
+            if item.is_file():
+                print(item.name)
+    elif p.exists():
         print(p.name)
 elif cmd == "copyto":
     if failure == "upload":
@@ -93,6 +99,9 @@ class MockCloudUploadTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(len(list(self.snaps.glob("*.tar.gz.gpg"))), 1,
                          result.stdout + result.stderr)
+
+    def test_listing_failure_retains_local(self):
+        self.assert_retained("list")
 
     def test_upload_failure_retains_local(self):
         self.assert_retained("upload")
