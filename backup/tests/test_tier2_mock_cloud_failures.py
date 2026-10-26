@@ -35,8 +35,13 @@ elif cmd == "copyto":
     if failure == "upload":
         sys.exit(19)
     target = path(args[1]); target.parent.mkdir(parents=True, exist_ok=True)
-    if failure == "collision" or (immutable and target.exists()):\n        sys.exit(27)\n    shutil.copyfile(args[0], target)
-    if failure == "interrupted":\n        target.write_bytes(b"incomplete upload")\n        sys.exit(28)\n    if failure == "staged_corrupt":
+    if failure == "collision" or (immutable and target.exists()):
+        sys.exit(27)
+    shutil.copyfile(args[0], target)
+    if failure == "interrupted":
+        target.write_bytes(b"incomplete upload")
+        sys.exit(28)
+    if failure == "staged_corrupt":
         target.write_bytes(b"corrupted staged object")
 elif cmd == "cat":
     p = path(args[0])
@@ -48,7 +53,11 @@ elif cmd == "moveto":
     if failure == "publish":
         sys.exit(23)
     source, target = path(args[0]), path(args[1])
-    if failure == "publish_collision":\n        target.write_bytes(b"existing other device backup")\n    if immutable and target.exists():\n        sys.exit(29)\n    source.rename(target)
+    if failure == "publish_collision":
+        target.write_bytes(b"existing other device backup")
+    if immutable and target.exists():
+        sys.exit(29)
+    source.rename(target)
 else:
     sys.exit(99)
 '''
