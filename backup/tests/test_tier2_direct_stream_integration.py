@@ -57,6 +57,8 @@ class DirectStreamTests(unittest.TestCase):
         root = self.home / ".andronix/distros/debian/rootfs"
         (root / "etc").mkdir(parents=True)
         (root / "etc" / "issue").write_text("synthetic only")
+        (root / "etc" / "passwd").write_text("root:x:0:0:root:/root:/bin/sh")
+        (root / "etc" / "os-release").write_text("ID=debian")
         (self.home / "start-debian.sh").write_text("#!/bin/sh")
         self.key = self.base / "passphrase"
         self.key.write_text("synthetic secret")
