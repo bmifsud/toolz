@@ -108,7 +108,13 @@ class DirectStreamTests(unittest.TestCase):
         self.assert_no_published_archive("publication")
 
     def test_collision(self):
-        self.assert_no_published_archive("collision")
+        result = self.run_case("collision")
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        existing = list(self.cloud.glob("backups/*.tar.gz.gpg"))
+        self.assertEqual(len(existing), 1)
+        self.assertEqual(existing[0].read_bytes(), b"existing")
+        self.assertNotIn("PASS: Encrypted stream", result.stdout)
+        self.assertFalse(list(self.home.rglob("*.tar.gz.gpg")))
 
     def test_missing_passphrase(self):
         self.assert_no_published_archive(overrides={"BACKUP_PASSPHRASE_FILE": str(self.base / "missing")})
