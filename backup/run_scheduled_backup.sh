@@ -83,7 +83,7 @@ if [[ "$MODE" == tier1 ]]; then
  latest="$(find "$localdir" -maxdepth 1 -type f -name 'cline_omniroute_backup_*.tar.gz.gpg' | LC_ALL=C sort | tail -1)"
  [[ -n "$latest" ]] || exit 1
  verify "$latest" 'gdrive:ClineOmniRouteBackups'
- "$HERE/tier1_retention.sh" --apply
+ TIER1_RETENTION_INHERITED_LOCK=9 "$HERE/tier1_retention.sh" --apply
 else
  # Full rootfs cannot be snapshotted consistently with active PRoot sessions.
  if pgrep -f '[p]root.*debian' >/dev/null 2>&1; then
