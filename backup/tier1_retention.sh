@@ -8,11 +8,21 @@ if [[ "$MODE" != "--apply" && "$MODE" != "--dry-run" ]]; then
   exit 2
 fi
 
-# Independent backup-lock coordination (does not assume inherited fd 9)
+# The scheduled runner already holds backup.lock on inherited fd 9.
+# Only reuse it when explicitly requested AND the fd points to the same lock inode.
+# Standalone invocations acquire the lock themselves.
 STATE="$HOME/.local/state/toolz-backup"
 mkdir -p "$STATE"
-exec 8>"$STATE/backup.lock"
-flock -n 8 || { echo 'Another backup or retention operation is running; skipping' >&2; exit 75; }
+LOCK="$STATE/backup.lock"
+if [[ "${TIER1_RETENTION_INHERITED_LOCK:-}" == "9" ]]; then
+  [[ -e /proc/self/fd/9 ]] || { echo 'Missing inherited backup lock fd 9' >&2; exit 75; }
+  held_inode="$(stat -Lc '%d:%i' /proc/self/fd/9)" || exit 75
+  lock_inode="$(stat -Lc '%d:%i' "$LOCK")" || exit 75
+  [[ "$held_inode" == "$lock_inode" ]] || { echo 'Inherited fd 9 does not match backup.lock' >&2; exit 75; }
+else
+  exec 8>"$LOCK"
+  flock -n 8 || { echo 'Another backup or retention operation is running; skipping' >&2; exit 75; }
+fi
 
 # Consistent Tier-1 backup output directory resolution
 if [ -n "${ANDROID_OUT:-}" ]; then
