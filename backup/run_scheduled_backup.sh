@@ -86,7 +86,7 @@ else
  export GDRIVE_SNAP_REMOTE="${GDRIVE_SNAP_REMOTE:-gdrive:ClineOmniRouteBackups/AndronixSnapshots}"
  # Record an isolated list before starting; the script prints the completed output path.
  snapshot_log="$(mktemp "$STATE/tier2-snapshot.XXXXXXXX")"
- trap 'rm -f -- "$snapshot_log"; on_exit "$?"' EXIT
+ trap 'status=$?; rm -f -- "$snapshot_log"; on_exit "$status"' EXIT
  "$HERE/snapshot_andronix2_streaming.sh" --gdrive | tee "$snapshot_log"
  latest="$(sed -n 's/^Locally verified: //p' "$snapshot_log" | tail -1)"
  [[ -n "$latest" && -f "$latest" ]] || { echo 'No completed Tier-2 archive from current run' >&2; exit 1; }
