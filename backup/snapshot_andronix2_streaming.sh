@@ -51,11 +51,30 @@ case "$MODE" in
     trap - EXIT
     echo "Locally verified: $out"
     if [[ "$MODE" == --gdrive ]]; then
-      rclone copyto "$out" "$REMOTE/$name"
+      # Upload under a non-final name. The local encrypted archive is retained
+      # on every failure, including failed verification and publication.
+      remote_partial="$REMOTE/$name.uploading"
+      remote_final="$REMOTE/$name"
+      if rclone lsf "$remote_final" >/dev/null 2>&1 &&
+         [[ -n "$(rclone lsf "$remote_final" 2>/dev/null)" ]]; then
+        fail 'Final cloud object already exists; retain local archive'
+      fi
+      rclone copyto "$out" "$remote_partial"
       local_hash="$(sha256sum "$out" | awk '{print $1}')"
-      remote_hash="$(rclone cat "$REMOTE/$name" | sha256sum | awk '{print $1}')"
-      [[ "$local_hash" == "$remote_hash" ]] || fail 'Cloud SHA256 mismatch; retain local archive'
-      echo "Cloud SHA256 verified: $name"
+      remote_hash="$(rclone cat "$remote_partial" | sha256sum | awk '{print $1}')"
+      [[ "$local_hash" == "$remote_hash" ]] || fail 'Staged cloud SHA256 mismatch; retain local archive'
+      # rclone moveto is not atomic on all remotes. Verify the final name
+      # again before deleting the local copy.
+      rclone moveto "$remote_partial" "$remote_final"
+      final_hash="$(rclone cat "$remote_final" | sha256sum | awk '{print $1}')"
+      [[ "$local_hash" == "$final_hash" ]] || fail 'Published cloud SHA256 mismatch; retain local archive'
+      echo "PASS: Published cloud SHA256 verified: $name"
+      if [[ "${TIER2_DELETE_LOCAL_AFTER_VERIFIED_UPLOAD:-0}" == 1 ]]; then
+        rm -- "$out"
+        echo "PASS: Removed local encrypted archive after verified cloud publication"
+      else
+        echo "Local encrypted archive retained (set TIER2_DELETE_LOCAL_AFTER_VERIFIED_UPLOAD=1 to opt in to deletion)"
+      fi
     fi
     ;;
   --verify-archive)
