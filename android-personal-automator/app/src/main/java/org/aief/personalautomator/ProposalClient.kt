@@ -64,13 +64,19 @@ class ProposalClient {
                 JSONObject(cleaned)
             } else response
             
-            val categoryStr = json.getString("category")
-            val actionStr = json.getString("action")
+            val categoryStr = if (json.has("category")) json.getString("category") else {
+                if (json.optString("action") == "OPEN_DEMO") "DEVICE_ACTION" else "UNSUPPORTED"
+            }
+            val rawActionStr = json.optString("action", "NONE")
+            val actionStr = when (rawActionStr) {
+                "NONE" -> if (categoryStr == "ANSWER") "ANSWER" else "UNSUPPORTED"
+                else -> rawActionStr
+            }
             val explanation = json.getString("explanation")
             val command = json.optString("command", "")
             
-            val category = TaskCategory.valueOf(categoryStr)
-            val action = Capability.valueOf(actionStr)
+            val category = runCatching { TaskCategory.valueOf(categoryStr) }.getOrDefault(TaskCategory.UNSUPPORTED)
+            val action = runCatching { Capability.valueOf(actionStr) }.getOrDefault(Capability.UNSUPPORTED)
             require(explanation.length in 1..2000)
             
             return TaskProposal(category, action, explanation, command)
