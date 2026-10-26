@@ -72,6 +72,8 @@ class MockCloudUploadTests(unittest.TestCase):
         self.assertIn('[[ "$ROOTFS_DIR" == "$HOME/.andronix/distros/debian/rootfs" ]]', script)
         self.script = self.base / "snapshot.sh"
         self.script.write_text(script)
+        shutil.copyfile(SOURCE.parent / "validate_andronix2_archive.py",
+                        self.base / "validate_andronix2_archive.py")
 
     def run_snapshot(self, failure=""):
         env = os.environ.copy()
