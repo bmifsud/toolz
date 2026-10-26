@@ -9,7 +9,8 @@ ROOTFS="$HOME/.andronix/distros/debian/rootfs"
 LAUNCHER="$HOME/start-debian.sh"
 REMOTE="${GDRIVE_SNAP_REMOTE:-gdrive:ClineOmniRouteBackups/AndronixSnapshots}"
 [[ -d "$ROOTFS" && ! -L "$ROOTFS" && -f "$LAUNCHER" ]] || fail 'Expected Debian rootfs and launcher missing'
-for cmd in tar gpg rclone python3 sha256sum flock grep; do command -v "$cmd" >/dev/null || fail "Missing $cmd"; done
+for cmd in tar gpg rclone python3 sha256sum flock grep pgrep; do command -v "$cmd" >/dev/null || fail "Missing $cmd"; done
+[[ -s "$ROOTFS/etc/passwd" && -s "$ROOTFS/etc/os-release" ]] || fail "Debian identity files missing or empty"
 if pgrep -f '[p]root.*debian' >/dev/null; then fail 'Stop Debian before backup'; fi
 if [[ "${1:-}" == --preflight ]]; then
   echo "EXPERIMENTAL: direct streaming not yet recovery-approved"
@@ -61,7 +62,7 @@ tar -C "$HOME" -czpf - --one-file-system \
 echo 'Validating complete staged encrypted archive from Google Drive'
 rclone cat "$staged" |
   gpg --batch --pinentry-mode loopback --passphrase-file "$PASSFILE" --decrypt |
-  python3 "$(dirname "$0")/validate_andronix2_archive.py" ||
+  python3 "$(dirname "$0")/validate_andronix2_archive.py" --require-debian-identity ||
   fail "Staged verification failed; object retained: $staged"
 staged_hash="$(rclone cat "$staged" | sha256sum | awk '{print $1}')" ||
   fail 'Cannot hash staged cloud object'
@@ -73,7 +74,7 @@ final_hash="$(rclone cat "$final" | sha256sum | awk '{print $1}')" ||
 [[ "$staged_hash" == "$final_hash" ]] || fail 'Published cloud checksum mismatch'
 rclone cat "$final" |
   gpg --batch --pinentry-mode loopback --passphrase-file "$PASSFILE" --decrypt |
-  python3 "$(dirname "$0")/validate_andronix2_archive.py" ||
+  python3 "$(dirname "$0")/validate_andronix2_archive.py" --require-debian-identity ||
   fail 'Published archive failed structural verification'
 echo "PASS: Encrypted stream, published checksum and archive structure verified: $final"
 echo 'No full-size local archive was created.'
