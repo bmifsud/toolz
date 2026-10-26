@@ -21,6 +21,8 @@ def validate(stream):
     seen = set()
     symlinks = set()
     found_root = found_launcher = False
+    required = {ROOT + "/etc/passwd", ROOT + "/etc/os-release"}
+    found_required = set()
     with tarfile.open(fileobj=stream, mode="r|gz") as archive:
         for member in archive:
             raw = member.name
@@ -32,6 +34,10 @@ def validate(stream):
             if name in seen:
                 reject("duplicate member " + repr(name))
             seen.add(name)
+            if name in required:
+                if not member.isfile() or member.size == 0:
+                    reject("missing or empty Debian identity file " + repr(name))
+                found_required.add(name)
             if not (name == "start-debian.sh" or name == ROOT or name.startswith(ROOT + "/") or name in PREFIXES):
                 reject("unexpected member " + repr(name))
             if name in PREFIXES and not member.isdir():
@@ -76,6 +82,8 @@ def validate(stream):
                 reject("negative size")
     if not found_root or not found_launcher:
         reject("required rootfs directory or launcher missing")
+    if "--require-debian-identity" in sys.argv[1:] and found_required != required:
+        reject("missing Debian identity files " + repr(sorted(required - found_required)))
     print("PASS: validated full archive structure (no extraction performed)")
 
 
