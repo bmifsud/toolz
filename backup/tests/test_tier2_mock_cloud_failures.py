@@ -13,7 +13,7 @@ import unittest
 SOURCE = Path(__file__).resolve().parents[1] / "snapshot_andronix2_streaming.sh"
 FAKE_RCLONE = r'''#!/usr/bin/env python3
 import os, pathlib, shutil, sys
-cmd, *args = sys.argv[1:]
+cmd, *args = sys.argv[1:]\nimmutable = "--immutable" in args\nargs = [arg for arg in args if arg != "--immutable"]
 root = pathlib.Path(os.environ["FAKE_CLOUD"])
 def path(remote):
     assert remote.startswith("fake:"), remote
@@ -33,8 +33,8 @@ elif cmd == "copyto":
     if failure == "upload":
         sys.exit(19)
     target = path(args[1]); target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(args[0], target)
-    if failure == "staged_corrupt":
+    if failure == "collision" or (immutable and target.exists()):\n        sys.exit(27)\n    shutil.copyfile(args[0], target)
+    if failure == "interrupted":\n        target.write_bytes(b"incomplete upload")\n        sys.exit(28)\n    if failure == "staged_corrupt":
         target.write_bytes(b"corrupted staged object")
 elif cmd == "cat":
     p = path(args[0])
@@ -46,7 +46,7 @@ elif cmd == "moveto":
     if failure == "publish":
         sys.exit(23)
     source, target = path(args[0]), path(args[1])
-    source.rename(target)
+    if failure == "publish_collision":\n        target.write_bytes(b"existing other device backup")\n    if immutable and target.exists():\n        sys.exit(29)\n    source.rename(target)
 else:
     sys.exit(99)
 '''
@@ -103,7 +103,7 @@ class MockCloudUploadTests(unittest.TestCase):
     def test_listing_failure_retains_local(self):
         self.assert_retained("list")
 
-    def test_upload_failure_retains_local(self):
+    def test_interrupted_upload_retains_local(self):\n        self.assert_retained("interrupted")\n\n    def test_remote_staged_collision_retains_local(self):\n        self.assert_retained("collision")\n\n    def test_remote_publication_collision_retains_local(self):\n        self.assert_retained("publish_collision")\n\n    def test_upload_failure_retains_local(self):
         self.assert_retained("upload")
 
     def test_staged_checksum_failure_retains_local(self):
