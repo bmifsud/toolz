@@ -45,7 +45,7 @@ case "$MODE" in
       .andronix/distros/debian/rootfs start-debian.sh \
       | gpg --batch --yes --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --symmetric --cipher-algo AES256 --output "$partial"
     [[ -s "$partial" ]] || fail 'Empty archive'
-    gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --decrypt "$partial" | tar -tzf - >/dev/null
+    gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --decrypt "$partial" | python3 "$(dirname "$0")/validate_andronix2_archive.py"
     mv -- "$partial" "$out"
     trap - EXIT
     echo "Locally verified: $out"
@@ -62,27 +62,8 @@ case "$MODE" in
     archive="$2"
     [[ -f "$archive" ]] || fail 'Archive missing'
     [[ -n "${BACKUP_PASSPHRASE_FILE:-}" && -r "$BACKUP_PASSPHRASE_FILE" ]] || fail 'Passphrase file required'
-    # Verify member names and link targets without extracting into a live rootfs.
-    gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --decrypt "$archive" | python3 -c '
-import sys,tarfile,pathlib
-allowed=".andronix/distros/debian/rootfs"
-seen_root=False
-with tarfile.open(fileobj=sys.stdin.buffer,mode="r|gz") as t:
- for m in t:
-  name=m.name.removeprefix("./").rstrip("/")
-  p=pathlib.PurePosixPath(name)
-  if p.is_absolute() or ".." in p.parts or not (name == "start-debian.sh" or name == allowed or name.startswith(allowed+"/")):
-   raise SystemExit("Unsafe member: "+m.name)
-  if name == allowed: seen_root=True
-  if m.issym() or m.islnk():
-   target=pathlib.PurePosixPath(m.linkname)
-   if target.is_absolute() or ".." in target.parts:
-    raise SystemExit("Unsafe link: "+m.name)
-  if not (m.isfile() or m.isdir() or m.issym() or m.islnk()):
-   raise SystemExit("Unsupported member type: "+m.name)
-if not seen_root: raise SystemExit("Rootfs missing from archive")
-print("PASS: decrypted full archive and validated member names/types")
-'
+    # Read-only streaming structural validation. Never extract to live rootfs.
+    gpg --batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE" --decrypt "$archive" | python3 "$(dirname "$0")/validate_andronix2_archive.py"
     # Archive verification is read-only. Restoration needs a separate safety-reviewed procedure.
     ;;
   *) fail 'Usage: script [--preflight|snapshot|--gdrive|--verify-archive ARCHIVE]' ;;
