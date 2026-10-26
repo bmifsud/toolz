@@ -8,23 +8,29 @@ if [[ "$MODE" != "--apply" && "$MODE" != "--dry-run" ]]; then
   exit 2
 fi
 
-# Coordinate with scheduled backup lock
+# Independent backup-lock coordination (does not assume inherited fd 9)
 STATE="$HOME/.local/state/toolz-backup"
 mkdir -p "$STATE"
-if ! { true >&9; } 2>/dev/null; then
-  exec 9>"$STATE/backup.lock"
-  flock -n 9 || { echo 'Another backup is running; skipping retention' >&2; exit 75; }
+exec 8>"$STATE/backup.lock"
+flock -n 8 || { echo 'Another backup or retention operation is running; skipping' >&2; exit 75; }
+
+# Consistent Tier-1 backup output directory resolution
+if [ -n "${ANDROID_OUT:-}" ]; then
+  LOCAL_DIR="$ANDROID_OUT"
+elif [ -n "${TIER1_LOCAL_DIR:-}" ]; then
+  LOCAL_DIR="$TIER1_LOCAL_DIR"
+elif [ -n "${ROOTFS_DIR:-}" ]; then
+  LOCAL_DIR="${ROOTFS_DIR}/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+elif [ -d "$HOME/.andronix/distros/debian/rootfs" ]; then
+  LOCAL_DIR="$HOME/.andronix/distros/debian/rootfs/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+elif [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
+  LOCAL_DIR="/mnt/shared/ClineOmniRouteBackups"
+elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then
+  LOCAL_DIR="/sdcard/ClineOmniRouteBackups"
+else
+  LOCAL_DIR="$HOME/ClineOmniRouteBackups"
 fi
 
-# Detect actual backup output directory
-if [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
-  DEFAULT_OUT="/mnt/shared/ClineOmniRouteBackups"
-elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then
-  DEFAULT_OUT="/sdcard/ClineOmniRouteBackups"
-else
-  DEFAULT_OUT="$HOME/ClineOmniRouteBackups"
-fi
-LOCAL_DIR="${TIER1_LOCAL_DIR:-${ANDROID_OUT:-$DEFAULT_OUT}}"
 GDRIVE_REMOTE="${GDRIVE_REMOTE:-gdrive:ClineOmniRouteBackups}"
 
 if [ ! -d "$LOCAL_DIR" ]; then
@@ -106,3 +112,4 @@ for old_file in "${older_files[@]}"; do
 done
 
 echo "Tier-1 retention completed successfully."
+

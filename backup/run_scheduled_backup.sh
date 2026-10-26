@@ -65,14 +65,21 @@ if [[ "$MODE" == tier1 ]]; then
    "$HERE/run_debian_noninteractive.sh" "/home/${DEBIAN_USER:-b}/toolz/backup/backup_cline_omniroute.sh" backup "/home/${DEBIAN_USER:-b}/toolz"
  fi
  unset BACKUP_PASSPHRASE
- if [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
-   DEFAULT_OUT="/mnt/shared/ClineOmniRouteBackups"
+ if [ -n "${ANDROID_OUT:-}" ]; then
+   localdir="$ANDROID_OUT"
+ elif [ -n "${TIER1_LOCAL_DIR:-}" ]; then
+   localdir="$TIER1_LOCAL_DIR"
+ elif [ -n "${ROOTFS_DIR:-}" ]; then
+   localdir="${ROOTFS_DIR}/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+ elif [ -d "$HOME/.andronix/distros/debian/rootfs" ]; then
+   localdir="$HOME/.andronix/distros/debian/rootfs/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+ elif [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
+   localdir="/mnt/shared/ClineOmniRouteBackups"
  elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then
-   DEFAULT_OUT="/sdcard/ClineOmniRouteBackups"
+   localdir="/sdcard/ClineOmniRouteBackups"
  else
-   DEFAULT_OUT="$HOME/ClineOmniRouteBackups"
+   localdir="$HOME/ClineOmniRouteBackups"
  fi
- localdir="${TIER1_LOCAL_DIR:-${ANDROID_OUT:-$DEFAULT_OUT}}"
  latest="$(find "$localdir" -maxdepth 1 -type f -name 'cline_omniroute_backup_*.tar.gz.gpg' | LC_ALL=C sort | tail -1)"
  [[ -n "$latest" ]] || exit 1
  verify "$latest" 'gdrive:ClineOmniRouteBackups'

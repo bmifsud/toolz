@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Detect Android Shared Storage mount point or use configured output directory
+# Detect Android Shared Storage or Andronix Debian rootfs backup output directory
 if [ -n "${ANDROID_OUT:-}" ]; then
   :
 elif [ -n "${TIER1_LOCAL_DIR:-}" ]; then
   ANDROID_OUT="$TIER1_LOCAL_DIR"
+elif [ -n "${ROOTFS_DIR:-}" ]; then
+  ANDROID_OUT="${ROOTFS_DIR}/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+elif [ -d "$HOME/.andronix/distros/debian/rootfs" ]; then
+  ANDROID_OUT="$HOME/.andronix/distros/debian/rootfs/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
 elif [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
   ANDROID_OUT="/mnt/shared/ClineOmniRouteBackups"
 elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then

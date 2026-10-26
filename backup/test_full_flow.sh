@@ -9,5 +9,5 @@ for file in backup_cline_omniroute.sh tier1_retention.sh pre_snapshot_clean.sh s
   test -f "$file" || { echo "Missing $file" >&2; exit 1; }
   bash -n "$file"
 done
-python3 -m pytest -v tests/test_tier1.py tests/test_tier2.py tests/test_backup_flow.py tests/test_retention.py
+python3 -m pytest -v tests/test_tier1.py tests/test_tier2.py tests/test_backup_flow.py tests/test_retention.py tests/test_andronix2_runner_wiring.py
 echo 'PASS: isolated regression suite. Device-specific acceptance and shell branch coverage remain separate requirements.'

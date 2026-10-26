@@ -141,9 +141,54 @@ def test_concurrent_lock_skips(retention_sandbox):
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         assert run_retention(d, '--apply').returncode == 75
 
+def test_real_andronix_path_resolution(retention_sandbox):
+    d, _, _, _ = retention_sandbox
+    home = Path(d['HOME'])
+    andronix_dir = home / '.andronix' / 'distros' / 'debian' / 'rootfs' / 'home' / 'b' / 'ClineOmniRouteBackups'
+    andronix_dir.mkdir(parents=True)
+    # Remove TIER1_LOCAL_DIR env so it falls back to Andronix path
+    env = d.copy()
+    env.pop('TIER1_LOCAL_DIR', None)
+    
+    old_name = 'cline_omniroute_backup_20260101_000000.tar.gz.gpg'
+    new_name = 'cline_omniroute_backup_20260102_000000.tar.gz.gpg'
+    (andronix_dir / old_name).write_text("old")
+    (andronix_dir / new_name).write_text("new")
+    remote_dir = Path(d['MOCK_REMOTE_DIR'])
+    (remote_dir / old_name).write_text("old")
+    (remote_dir / new_name).write_text("new")
+
+    res = run_retention(env, '--apply')
+    assert res.returncode == 0, res.stderr
+    assert not (andronix_dir / old_name).exists()
+    assert (andronix_dir / new_name).exists()
+
 def test_idempotency(retention_sandbox):
     d, local_dir, _, _ = retention_sandbox
     assert run_retention(d, '--apply').returncode == 0
     (local_dir / 'cline_omniroute_backup_20260101_000000.tar.gz.gpg').write_text("only")
     assert run_retention(d, '--apply').returncode == 0
+
+def test_lock_not_dependent_on_inherited_fd9(retention_sandbox):
+    d, _, _, state_dir = retention_sandbox
+    # Simulate parent having an open file on fd 9 that is NOT the lock
+    script = f'''
+    exec 9</dev/null
+    bash {SCRIPT} --dry-run
+    '''
+    res = subprocess.run(['bash', '-c', script], env=d, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+
+def test_failed_cloud_lsf_operation(retention_sandbox):
+    d, local_dir, remote_dir, _ = retention_sandbox
+    # Fail rclone lsf operation
+    bins = Path(d['PATH'].split(':')[0])
+    (bins / 'rclone').write_text('#!/bin/sh\n[ "$1" = listremotes ] && { echo gdrive:; exit 0; }\nexit 1\n')
+    names = ['cline_omniroute_backup_20260101_000000.tar.gz.gpg', 'cline_omniroute_backup_20260102_000000.tar.gz.gpg']
+    for name in names:
+        (local_dir / name).write_text(f"content-{name}")
+    res = run_retention(d, '--apply')
+    assert res.returncode != 0
+    assert (local_dir / names[0]).exists()
+
 
