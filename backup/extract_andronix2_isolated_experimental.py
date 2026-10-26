@@ -132,6 +132,10 @@ def extract(source, destination):
             parent = os.dup(rootfd)
             try:
                 for part in parts[:-1]:
+                    try:
+                        os.mkdir(part, 0o700, dir_fd=parent)
+                    except FileExistsError:
+                        pass
                     child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
                     os.close(parent)
                     parent = child
