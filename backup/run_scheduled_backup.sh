@@ -80,10 +80,20 @@ else
  [[ -f "$marker" ]] || { echo 'SKIPPED: no Tier-2 preflight readiness marker'; exit 75; }
  now="$(date +%s)"; stamp="$(stat -c %Y "$marker")"
  (( now-stamp <= 7200 )) || { echo 'SKIPPED: preflight marker older than two hours'; exit 75; }
- "$HERE/snapshot_andronix_debian.sh" --gdrive
- latest="$(find "${SNAP_DIR:-/sdcard/Andronix/backups}" -maxdepth 1 -type f -name 'andronix-debian-*.tar.gz.gpg' | LC_ALL=C sort | tail -1)"
- [[ -n "$latest" ]] || exit 1
- verify "$latest" 'gdrive:ClineOmniRouteBackups/AndronixSnapshots'
+ # The streaming script needs the filename of THIS run, not a potentially stale archive.
+ export BACKUP_PASSPHRASE_FILE
+ export SNAP_DIR="${SNAP_DIR:-/sdcard/Andronix/backups}"
+ export GDRIVE_SNAP_REMOTE="${GDRIVE_SNAP_REMOTE:-gdrive:ClineOmniRouteBackups/AndronixSnapshots}"
+ # Record an isolated list before starting; the script prints the completed output path.
+ snapshot_log="$(mktemp "$STATE/tier2-snapshot.XXXXXXXX")"
+ trap 'rm -f -- "$snapshot_log"; on_exit "$?"' EXIT
+ "$HERE/snapshot_andronix2_streaming.sh" --gdrive | tee "$snapshot_log"
+ latest="$(sed -n 's/^Locally verified: //p' "$snapshot_log" | tail -1)"
+ [[ -n "$latest" && -f "$latest" ]] || { echo 'No completed Tier-2 archive from current run' >&2; exit 1; }
+ "$HERE/snapshot_andronix2_streaming.sh" --verify-archive "$latest"
+ verify "$latest" "$GDRIVE_SNAP_REMOTE"
+ rm -f -- "$snapshot_log"
+ trap 'on_exit "$?"' EXIT
  rm -f "$marker"
 fi
 echo "SUCCESS $MODE $(date -Is)"
