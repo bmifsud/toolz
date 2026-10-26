@@ -142,6 +142,27 @@ def extract(source, destination):
                 os.symlink(target, parts[-1], dir_fd=parent)
             finally:
                 os.close(parent)
+        # Parent directories created implicitly remain 0700 unless explicit
+        # archive directory metadata exists. Restore searchable permissions
+        # for synthetic implicit parents only; never loosen explicit metadata.
+        explicit_dirs = {tuple(parts) for parts, _mode in directories}
+        implicit_dirs = set()
+        for name in seen:
+            parts = name.split("/")
+            for i in range(1, len(parts)):
+                prefix = tuple(parts[:i])
+                if prefix not in explicit_dirs:
+                    implicit_dirs.add(prefix)
+        for parts in sorted(implicit_dirs, key=len, reverse=True):
+            parent = os.dup(rootfd)
+            try:
+                for part in parts[:-1]:
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                    os.close(parent)
+                    parent = child
+                os.chmod(parts[-1], 0o755, dir_fd=parent, follow_symlinks=False)
+            finally:
+                os.close(parent)
         for parts, mode in sorted(directories, key=lambda item: -len(item[0])):
             parent = os.dup(rootfd)
             try:
