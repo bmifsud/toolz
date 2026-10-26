@@ -75,6 +75,25 @@ class ValidatorTests(unittest.TestCase):
             tar.addfile(launcher)
         self.assertNotEqual(run(buffer.getvalue()).returncode, 0)
 
+    def test_reject_socket_archive_member(self):
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+            root = tarfile.TarInfo(ROOT)
+            root.type = tarfile.DIRTYPE
+            tar.addfile(root)
+            socket = tarfile.TarInfo(ROOT + "/home/b/.gnupg/S.gpg-agent")
+            socket.type = tarfile.FIFOTYPE
+            tar.addfile(socket)
+            launcher = tarfile.TarInfo("start-debian.sh")
+            launcher.size = 0
+            tar.addfile(launcher)
+        self.assertNotEqual(run(buffer.getvalue()).returncode, 0)
+
+    def test_snapshot_excludes_agent_sockets_not_gnupg(self):
+        script = (VALIDATOR.parent / "snapshot_andronix2_streaming.sh").read_text()
+        self.assertIn("--exclude='.andronix/distros/debian/rootfs/home/b/.gnupg/S.gpg-agent*'", script)
+        self.assertNotIn("--exclude='.andronix/distros/debian/rootfs/home/b/.gnupg' ", script)
+
     def test_reject_hardlink(self):
         buffer = io.BytesIO()
         with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
