@@ -13,7 +13,9 @@ import unittest
 SOURCE = Path(__file__).resolve().parents[1] / "snapshot_andronix2_streaming.sh"
 FAKE_RCLONE = r'''#!/usr/bin/env python3
 import os, pathlib, shutil, sys
-cmd, *args = sys.argv[1:]\nimmutable = "--immutable" in args\nargs = [arg for arg in args if arg != "--immutable"]
+cmd, *args = sys.argv[1:]
+immutable = "--immutable" in args
+args = [arg for arg in args if arg != "--immutable"]
 root = pathlib.Path(os.environ["FAKE_CLOUD"])
 def path(remote):
     assert remote.startswith("fake:"), remote
