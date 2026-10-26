@@ -11,8 +11,32 @@ import errno
 import os
 from pathlib import Path
 import secrets
+import stat
 
 from backup.extract_andronix2_isolated_experimental import extract
+
+
+COMPLETION_MARKER = ".tier2-recovery-complete"
+
+
+def sync_tree(root):
+    """Fsync regular files and directories without following symlinks."""
+    for current, dirs, files in os.walk(root, topdown=False, followlinks=False):
+        for name in files:
+            path = Path(current) / name
+            if path.is_symlink():
+                continue
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            try:
+                if stat.S_ISREG(os.fstat(fd).st_mode):
+                    os.fsync(fd)
+            finally:
+                os.close(fd)
+        fd = os.open(current, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
 
 def publish_noreplace(staging, final):
@@ -48,8 +72,21 @@ def recover_synthetic(archive, destination):
     except BaseException:
         # Retain incomplete staging for manual review; never advertise success.
         raise
-    # Atomic no-overwrite publication on Linux. Still not crash-durable.
+    # Sync extracted data before creating a completion marker.
+    sync_tree(staging)
+    marker = staging / COMPLETION_MARKER
+    fd = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as out:
+        out.write("synthetic-recovery-complete\\n")
+        out.flush()
+        os.fsync(out.fileno())
+    sync_tree(staging)
     publish_noreplace(staging, final)
+    parentfd = os.open(final.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(parentfd)
+    finally:
+        os.close(parentfd)
     return count
 
 
