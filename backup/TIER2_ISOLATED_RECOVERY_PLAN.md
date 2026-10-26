@@ -28,7 +28,7 @@ Prove that an encrypted Andronix Debian backup can be decrypted, integrity-check
 - Failure halfway through extraction: no writes outside staging, live rootfs untouched
 
 ## Release gates
-- Full real-rootfs read-only streaming validation: **pending user result**
+- Full real-rootfs read-only streaming validation: **PASS, user-reported 2026-10-26, 2088 seconds** (streaming archive structural validation; not a recovery test)
 - Isolated recovery implementation and adversarial tests: **pending**
 - Verified encrypted cloud object and full decrypt-to-isolated-recovery: **pending**
 - Manual recovery procedure reviewed and documented: **pending**
