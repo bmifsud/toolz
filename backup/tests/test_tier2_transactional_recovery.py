@@ -6,7 +6,7 @@ import unittest
 from unittest import mock
 import errno
 
-from backup.recover_andronix2_transactional_experimental import recover_synthetic
+from backup.recover_andronix2_transactional_experimental import recover_synthetic, COMPLETION_MARKER
 from backup.tests.test_tier2_isolated_extractor import fixture, ROOT
 
 
@@ -23,6 +23,29 @@ class TransactionalTests(unittest.TestCase):
         self.assertEqual(recover_synthetic(self.archive, self.final), 5)
         self.assertTrue((self.final / "start-debian.sh").exists())
         self.assertFalse(list(self.base.glob("*.incomplete")))
+
+    def test_success_has_completion_marker(self):
+        fixture(self.archive)
+        recover_synthetic(self.archive, self.final)
+        self.assertEqual((self.final / COMPLETION_MARKER).read_text(),
+                         "synthetic-recovery-complete\\n")
+
+    def test_failed_recovery_has_no_completion_marker(self):
+        fixture(self.archive, [(ROOT + "/../escape", tarfile.REGTYPE, "")])
+        with self.assertRaises(ValueError):
+            recover_synthetic(self.archive, self.final)
+        stages = list(self.base.glob(".tier2-*.incomplete"))
+        self.assertEqual(len(stages), 1)
+        self.assertFalse((stages[0] / COMPLETION_MARKER).exists())
+
+    def test_interrupted_before_publish_is_not_complete(self):
+        fixture(self.archive)
+        from backup import recover_andronix2_transactional_experimental as module
+        with mock.patch.object(module, "publish_noreplace", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                recover_synthetic(self.archive, self.final)
+        self.assertFalse(self.final.exists())
+        self.assertEqual(len(list(self.base.glob(".tier2-*.incomplete"))), 1)
 
     def test_failure_never_publishes(self):
         fixture(self.archive, [(ROOT + "/../../escape", tarfile.REGTYPE, "")])
