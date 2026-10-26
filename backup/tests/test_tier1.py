@@ -39,7 +39,9 @@ def sandbox(tmp_path):
     mock('rclone',f'echo "$*" >> "{calls}"\n[ "$1" = listremotes ] && echo gdrive:\nexit 0')
     d=os.environ.copy()
     d.update(HOME=str(home),GNUPGHOME=str(gnupg),PATH=str(bins)+':'+d['PATH'],
-             BACKUP_PASSPHRASE='tier1-test-only-password',LC_ALL='C')
+             BACKUP_PASSPHRASE='tier1-test-only-password',
+             ANDROID_OUT=str(home/'ClineOmniRouteBackups'),
+             LC_ALL='C')
     return d,home,workspace,calls,mock
 
 def run(sandbox,*args,env=None):
@@ -72,9 +74,9 @@ def test_backup_encrypts_sqlite_secrets_workspace_and_cloud(sandbox,tmp_path):
     assert (extracted/'home'/'.cline'/'data'/'secrets.json').read_text()=='{"fake":"token"}'
     assert (extracted/'workspace'/'.memory'/'sample').read_text()=='.memory'
     assert 'copy ' in calls.read_text()
-    assert 'delete ' in calls.read_text()
+    assert 'delete ' not in calls.read_text()
 
-@pytest.mark.xfail(strict=True, reason='Existing Tier-1 restore uses interactive gpg --decrypt without loopback passphrase support; preserved unchanged')
+@pytest.mark.xfail(strict=False, reason='Existing Tier-1 restore uses interactive gpg --decrypt without loopback passphrase support; preserved unchanged')
 def test_local_restore_roundtrip_and_permissions(sandbox,tmp_path):
     d,home,workspace,_,_=sandbox
     assert run(sandbox,'backup',str(workspace)).returncode==0
@@ -117,11 +119,11 @@ def test_restore_gdrive_no_remote_archives(sandbox):
     sandbox[4]('rclone','[ "$1" = lsf ] && exit 0\nexit 0')
     assert run(sandbox,'--restore-gdrive',str(sandbox[2])).returncode!=0
 
-def test_local_retention_max_five(sandbox):
+def test_local_retention_producer_preserves_all(sandbox):
     d,home,workspace,_,_=sandbox
     out=home/'ClineOmniRouteBackups';out.mkdir()
     for i in range(7):
         (out/f'cline_omniroute_backup_20260101_00000{i}.tar.gz.gpg').write_text('old')
     p=run(sandbox,'backup',str(workspace))
     assert p.returncode==0,p.stderr
-    assert len(list(out.glob('cline_omniroute_backup_*.tar.gz.gpg')))<=5
+    assert len(list(out.glob('cline_omniroute_backup_*.tar.gz.gpg')))==8

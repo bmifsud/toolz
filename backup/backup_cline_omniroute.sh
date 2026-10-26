@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Detect Android Shared Storage mount point (/mnt/shared for Android Linux VM, /sdcard for Termux proot)
-if [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
+# Detect Android Shared Storage mount point or use configured output directory
+if [ -n "${ANDROID_OUT:-}" ]; then
+  :
+elif [ -n "${TIER1_LOCAL_DIR:-}" ]; then
+  ANDROID_OUT="$TIER1_LOCAL_DIR"
+elif [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
   ANDROID_OUT="/mnt/shared/ClineOmniRouteBackups"
 elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then
   ANDROID_OUT="/sdcard/ClineOmniRouteBackups"
@@ -127,14 +131,11 @@ else
   tar -czp -C "$WORK_DIR" . | gpg --symmetric --cipher-algo AES256 -o "$OUT_FILE"
 fi
 
-# Retain the 5 most recent local backups on Android shared storage
-ls -1t "$ANDROID_OUT"/cline_omniroute_backup_*.tar.gz.gpg 2>/dev/null | tail -n +6 | xargs -r rm -f
 echo "Local encrypted backup saved: $OUT_FILE"
 
 echo "[5/5] Syncing encrypted archive to Google Drive ($GDRIVE_REMOTE)..."
 if command -v rclone >/dev/null 2>&1 && rclone listremotes | grep -q "^gdrive:$"; then
   rclone copy "$OUT_FILE" "$GDRIVE_REMOTE/" --progress
-  rclone delete "$GDRIVE_REMOTE/" --min-age 30d >/dev/null 2>&1 || true
   echo "Google Drive upload complete!"
 else
   echo "Warning: rclone remote 'gdrive:' not configured. Skipping cloud upload (run 'rclone config' to enable)."
