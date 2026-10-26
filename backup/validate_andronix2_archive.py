@@ -24,7 +24,7 @@ def validate(stream):
     with tarfile.open(fileobj=stream, mode="r|gz") as archive:
         for member in archive:
             raw = member.name
-            if raw.startswith("/") or raw.startswith("./") or "\\" in raw:
+            if raw.startswith("/") or raw.startswith("./"):
                 reject("noncanonical path " + repr(raw))
             name = raw.rstrip("/")
             if not name or any(part in ("", ".", "..") for part in name.split("/")):
@@ -50,7 +50,7 @@ def validate(stream):
                     reject("member under symlink " + repr(name))
             if member.issym():
                 target = member.linkname
-                if not target or "\\" in target or "\x00" in target:
+                if not target or "\x00" in target:
                     reject("invalid symlink target " + repr(name))
                 # Absolute targets are normal in Debian. They are stored as
                 # metadata only; never dereference them during validation.
