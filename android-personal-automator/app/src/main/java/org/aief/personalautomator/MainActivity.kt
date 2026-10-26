@@ -234,13 +234,27 @@ class MainActivity : Activity() {
             layout.addView(this)
         }
         approve = Button(this).apply {
-            text = "Approve: open demo PR #299"
+            text = "Approve and execute proposed action"
             isEnabled = false
             setOnClickListener {
                 val service = DemoAccessibilityService.instance
-                if (service != null && gate.consume(service.session)) service.openDemo()
+                if (service != null) {
+                    val proposalObj = gate.consume(service.session)
+                    if (proposalObj != null) {
+                        if (proposalObj.action == Capability.ANSWER) {
+                            proposal.text = "Informational Answer:\n${proposalObj.explanation}"
+                        } else if (service.session.authorize(proposalObj.action)) {
+                            val (success, message) = TermuxBridge.execute(proposalObj.action, proposalObj.command)
+                            service.session.recordResult(success)
+                            proposal.text = "Execution Result:\n$message"
+                        } else {
+                            proposal.text = "Authorization failed."
+                        }
+                    } else {
+                        proposal.text = "Proposal expired or session changed."
+                    }
+                }
                 discardProposal()
-                proposal.text = "Proposal consumed. Check the session audit for dispatch result."
                 refresh()
             }
             layout.addView(this)
@@ -296,13 +310,24 @@ class MainActivity : Activity() {
                         service.session.state != SessionState.READY || !consent.isChecked) {
                         discardProposal()
                         proposal.text = "Session changed; response discarded."
-                    } else result.fold(onSuccess = { (action, explanation) ->
-                        approve.isEnabled = !testOnly && gate.offer(action, service.session)
+                    } else result.fold(onSuccess = { proposalObj ->
+                        approve.isEnabled = !testOnly && gate.offer(proposalObj, service.session)
                         if (testOnly) {
                             gate.clear()
                             proposal.text = "Connection test passed. Saved token authenticated and model returned a valid proposal. No action was authorized or executed."
-                        } else proposal.text = "AI explanation (untrusted):\n$explanation\n\n" +
-                            if (action == "OPEN_DEMO") "Proposed action: open $DEMO_URL" else "No supported action proposed."
+                        } else {
+                            val actionDesc = when (proposalObj.action) {
+                                Capability.OPEN_DEMO -> "open $DEMO_URL"
+                                Capability.ANSWER -> "informational answer"
+                                Capability.READ_UPTIME -> "read system uptime"
+                                Capability.RUN_TESTS -> "run toolz unit tests"
+                                Capability.UNSUPPORTED -> "unsupported action (refused)"
+                            }
+                            proposal.text = "AI explanation (${proposalObj.category}):\n${proposalObj.explanation}\n\nProposed capability: $actionDesc"
+                            if (proposalObj.action == Capability.UNSUPPORTED) {
+                                approve.isEnabled = false
+                            }
+                        }
                     }, onFailure = {
                         gate.clear()
                         approve.isEnabled = false
