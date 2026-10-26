@@ -103,7 +103,16 @@ class MockCloudUploadTests(unittest.TestCase):
     def test_listing_failure_retains_local(self):
         self.assert_retained("list")
 
-    def test_interrupted_upload_retains_local(self):\n        self.assert_retained("interrupted")\n\n    def test_remote_staged_collision_retains_local(self):\n        self.assert_retained("collision")\n\n    def test_remote_publication_collision_retains_local(self):\n        self.assert_retained("publish_collision")\n\n    def test_upload_failure_retains_local(self):
+    def test_interrupted_upload_retains_local(self):
+        self.assert_retained("interrupted")
+
+    def test_remote_staged_collision_retains_local(self):
+        self.assert_retained("collision")
+
+    def test_remote_publication_collision_retains_local(self):
+        self.assert_retained("publish_collision")
+
+    def test_upload_failure_retains_local(self):
         self.assert_retained("upload")
 
     def test_staged_checksum_failure_retains_local(self):
