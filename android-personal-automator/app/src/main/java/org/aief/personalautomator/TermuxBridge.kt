@@ -35,23 +35,25 @@ object TermuxBridge {
             val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
             if (!finished) {
                 process.destroyForcibly()
-                return false to "Execution timed out after $timeoutSeconds seconds."
+                return Pair(false, "Execution timed out after $timeoutSeconds seconds.")
             }
             
             val output = StringBuilder()
             BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                var line: String?
-                while (reader.readLine().also { line = reader.readLine() } != null) {
+                var line: String? = reader.readLine()
+                while (line != null) {
                     if (output.length < 50000) {
                         output.append(line).append("\n")
                     }
+                    line = reader.readLine()
                 }
             }
             val exitCode = process.exitValue()
             val resultStr = output.toString().trim()
-            exitCode == 0 to if (resultStr.isNotBlank()) resultStr else "Exit code: $exitCode"
+            Pair(exitCode == 0, if (resultStr.isNotBlank()) resultStr else "Exit code: $exitCode")
         } catch (e: Exception) {
-            false to "Execution failed: ${e.message}"
+            Pair(false, "Execution failed: ${e.message}")
         }
     }
 }
+
