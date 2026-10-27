@@ -27,14 +27,14 @@ async def main():
                         break
                     try:
                         data = json.loads(raw)
-                        if data.get("type") != "request" or data.get("diagnostic") != "git-branch":
+                        if data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests"):
                             continue
                         request_id = data.get("id")
                         if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
                             continue
                         seen.add(request_id)
-                        print(f"[bridge] REQUEST {request_id}: $ git branch --show-current", flush=True)
-                        result = run("git-branch")
+                        print(f"[bridge] REQUEST {request_id}: {data['diagnostic']}", flush=True)
+                        result = run(data["diagnostic"])
                         print(f"[bridge] exit={result.get('exit_code')} stdout={result.get('stdout', '').rstrip()}", flush=True)
                         await ws.send(json.dumps({"type":"result","id":request_id,"result":result}))
                     except (ValueError, TypeError, AttributeError):
