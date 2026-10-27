@@ -134,5 +134,35 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         await self.relay.handler(ws)
         self.assertEqual(ws.closed["code"], 1008)
 
+    async def test_controller_rejects_unsupported_diagnostic(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/controller", headers={"Authorization": "Bearer controller-" + "b" * 40})
+            def __init__(self): self.sent = []
+            async def send(self, message): self.sent.append(message)
+            def __aiter__(self): return self
+            async def __anext__(self):
+                if getattr(self, "read", False): raise StopAsyncIteration
+                self.read = True
+                return json.dumps({"id": "request05", "diagnostic": "shell"})
+        ws = FakeSocket()
+        await self.relay.handler(ws)
+        self.assertEqual(ws.sent, [])
+        self.assertEqual(self.relay.pending, {})
+
+    async def test_controller_reports_device_offline(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/controller", headers={"Authorization": "Bearer controller-" + "b" * 40})
+            def __init__(self): self.sent = []
+            async def send(self, message): self.sent.append(json.loads(message))
+            def __aiter__(self): return self
+            async def __anext__(self):
+                if getattr(self, "read", False): raise StopAsyncIteration
+                self.read = True
+                return json.dumps({"id": "request06", "diagnostic": "git-branch"})
+        ws = FakeSocket()
+        await self.relay.handler(ws)
+        self.assertEqual(ws.sent[0]["message"], "device offline")
+        self.assertEqual(self.relay.pending, {})
+
 if __name__ == "__main__":
     unittest.main()
