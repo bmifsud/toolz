@@ -2,6 +2,7 @@
 """Minimal opt-in WebSocket relay; no shell execution on server."""
 import asyncio
 import json
+import logging
 import os
 import secrets
 from urllib.parse import urlsplit
@@ -17,6 +18,21 @@ CONTROLLER_TOKEN = os.environ["BRIDGE_CONTROLLER_TOKEN"]
 if len(DEVICE_TOKEN) < 32 or len(CONTROLLER_TOKEN) < 32 or DEVICE_TOKEN == CONTROLLER_TOKEN:
     raise SystemExit("Use distinct random tokens of at least 32 characters")
 device = None
+
+class HealthProbeLogFilter(logging.Filter):
+    """Suppress expected HEAD handshake traces; preserve unrelated failures."""
+    def filter(self, record):
+        if record.getMessage() != "opening handshake failed" or not record.exc_info:
+            return True
+        error = record.exc_info[1]
+        while error is not None:
+            if isinstance(error, ValueError) and str(error) == "unsupported HTTP method; expected GET; got HEAD":
+                return False
+            error = error.__cause__ or error.__context__
+        return True
+
+relay_logger = logging.getLogger("websockets.server")
+relay_logger.addFilter(HealthProbeLogFilter())
 
 async def handler(ws):
     global device
