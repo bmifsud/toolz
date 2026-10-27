@@ -5,8 +5,9 @@ import json
 import re
 from datetime import datetime, timezone
 
-PREFIX = re.compile(r"^\s*@(ChatGPT|GitHub|Termux)\b\s*:?[ \t]*", re.I)
+PREFIX = re.compile(r"^\s*@(ChatGPT|GitHub|Termux|Debian)\b\s*:?[ \t]*", re.I)
 TERMUX = re.compile(r"\b(termux|tablet|android device|on my device|cron|local backup|device logs)\b", re.I)
+DEBIAN = re.compile(r"\\b(debian|andronix|proot|rootfs|tier-2|tier 2)\\b", re.I)
 GITHUB = re.compile(r"\b(github|pull request|\bpr\b|repository|commit|workflow|actions|branch)\b", re.I)
 MUTATE = re.compile(r"\b(delete|remove|install|uninstall|restart|stop|start|modify|write|push|merge|deploy|backup now|run backup)\b", re.I)
 TEST = re.compile(r"\b(test|pytest|verify|validation|check suite)\b", re.I)
@@ -27,17 +28,17 @@ def route(message: str) -> Decision:
     if not body.strip():
         return Decision("chatgpt", "clarify", "none", "empty prefixed request")
     if explicit:
-        target = {"chatgpt": "chatgpt", "github": "github", "termux": "termux"}[explicit]
+        target = {"chatgpt": "chatgpt", "github": "github", "termux": "termux", "debian": "debian"}[explicit]
     else:
-        t, g = bool(TERMUX.search(body)), bool(GITHUB.search(body))
-        target = "chatgpt" if t == g else ("termux" if t else "github")
-        if t and g:
+        targets = [name for name, found in (("termux", TERMUX.search(body)), ("debian", DEBIAN.search(body)), ("github", GITHUB.search(body))) if found]
+        if len(targets) > 1:
             return Decision("chatgpt", "clarify", "none", "multiple execution targets")
+        target = targets[0] if targets else "chatgpt"
     if target == "chatgpt":
         return Decision(target, "none", "answer", "local response or clarification")
     if MUTATE.search(body):
         return Decision(target, "approval_required", "propose_only", "mutating operation")
-    if target == "termux":
+    if target in ("termux", "debian"):
         if TEST.search(body):
             return Decision(target, "allowlisted_only", "propose_diagnostic", "bounded test requested")
         return Decision(target, "allowlisted_only", "propose_diagnostic", "read-only diagnostic")
