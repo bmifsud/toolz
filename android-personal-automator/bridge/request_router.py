@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 PREFIX = re.compile(r"^\s*@(ChatGPT|GitHub|Termux|Debian)\b\s*:?[ \t]*", re.I)
 TERMUX = re.compile(r"\b(termux|tablet|android device|on my device|cron|local backup|device logs)\b", re.I)
-DEBIAN = re.compile(r"\\b(debian|andronix|proot|rootfs|tier-2|tier 2)\\b", re.I)
+DEBIAN = re.compile(r"\b(debian|andronix|proot|rootfs|tier-2|tier 2)\b", re.I)
 GITHUB = re.compile(r"\b(github|pull request|\bpr\b|repository|commit|workflow|actions|branch)\b", re.I)
 MUTATE = re.compile(r"\b(delete|remove|install|uninstall|restart|stop|start|modify|write|push|merge|deploy|backup now|run backup)\b", re.I)
 TEST = re.compile(r"\b(test|pytest|verify|validation|check suite)\b", re.I)
