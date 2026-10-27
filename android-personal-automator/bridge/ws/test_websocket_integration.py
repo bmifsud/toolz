@@ -68,6 +68,29 @@ class WebSocketIntegrationTests(unittest.TestCase):
                             ws.receive_text()
                     self.assertEqual(failure.exception.code, 1008)
 
+    def test_disconnect_notifies_controller_and_allows_new_device(self):
+        with TestClient(self.relay.app) as client:
+            with client.websocket_connect("/controller", headers={
+                "Authorization": "Bearer " + self.controller_token
+            }) as controller:
+                with client.websocket_connect("/device", headers={
+                    "Authorization": "Bearer " + self.device_token
+                }) as device:
+                    controller.send_json({"id": "integration03", "diagnostic": "git-branch"})
+                    self.assertEqual(device.receive_json()["id"], "integration03")
+                self.assertEqual(controller.receive_json()["message"], "device disconnected")
+                controller.send_json({"id": "integration04", "diagnostic": "git-branch"})
+                self.assertEqual(controller.receive_json()["message"], "device offline")
+                with client.websocket_connect("/device", headers={
+                    "Authorization": "Bearer " + self.device_token
+                }) as reconnected:
+                    controller.send_json({"id": "integration05", "diagnostic": "git-branch"})
+                    self.assertEqual(reconnected.receive_json()["id"], "integration05")
+                    reconnected.send_json({"type": "result", "id": "integration05", "result": {
+                        "exit_code": 0, "stdout": "recovered"
+                    }})
+                    self.assertEqual(controller.receive_json()["result"]["stdout"], "recovered")
+
 
 if __name__ == "__main__":
     unittest.main()
