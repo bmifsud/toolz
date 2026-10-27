@@ -58,17 +58,20 @@ def poll_once(state_dir=STATE_DIR, now=None):
     state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     state = state_dir / "seen-comment-ids.json"
     seen = set(json.loads(state.read_text())) if state.exists() else set()
+    processed_ids = {v[3:] for v in seen if v.startswith("id:")}
     for comment in comments:
         request = validate(comment, now)
         if request is None:
             continue
         comment_id = str(comment["id"])
-        if comment_id in seen:
+        if "comment:" + comment_id in seen or request["id"] in processed_ids:
             continue
         # Persist before running; an interrupted publish is not retried automatically.
-        seen.add(comment_id)
+        seen.update({"comment:" + comment_id, "id:" + request["id"]})
+        processed_ids.add(request["id"])
         tmp = state.with_suffix(".tmp")
         tmp.write_text(json.dumps(sorted(seen)))
+        tmp.chmod(0o600)
         os.replace(tmp, state)
         result = run(request["diagnostic"])
         payload = {"id": request["id"], "result": result}
@@ -85,6 +88,9 @@ def main():
         parser.error("interval must be 10-3600 seconds")
     STATE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     stop = STATE_DIR / "STOP"
+    if stop.exists():
+        print("STOP file exists; remove it manually before starting")
+        return
     print("Polling issue #24; stop with Ctrl-C or: touch", stop, flush=True)
     try:
         while not stop.exists():
