@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import secrets
-from urllib.parse import urlsplit, parse_qs
+from urllib.parse import urlsplit
 from websockets.asyncio.server import serve
 
 HOST = os.environ.get("BRIDGE_HOST", "0.0.0.0")
@@ -19,9 +19,10 @@ async def handler(ws):
     global device
     path = urlsplit(ws.request.path)
     role = path.path
-    token = parse_qs(path.query).get("token", [""])[0]
+    authorization = ws.request.headers.get("Authorization", "")
+    token = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
     expected = DEVICE_TOKEN if role == "/device" else CONTROLLER_TOKEN if role == "/controller" else ""
-    if not expected or not secrets.compare_digest(token, expected):
+    if path.query or not expected or not secrets.compare_digest(token, expected):
         await ws.close(code=1008, reason="Unauthorized")
         return
     if role == "/device":
