@@ -173,7 +173,9 @@ class DeviceProcessTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(self.device, "STOP", marker):
                 with patch.object(self.device, "connect", return_value=socket):
                     with patch.object(self.device, "run_diagnostic", new_callable=AsyncMock) as worker:
-                        worker.side_effect = lambda *args: asyncio.sleep(60)
+                        async def wait_until_cancelled(*args):
+                            await asyncio.sleep(60)
+                        worker.side_effect = wait_until_cancelled
                         await asyncio.wait_for(self.device.main(), timeout=4)
                         self.assertEqual(worker.await_count, 1)
             self.assertEqual(socket.messages, [])
