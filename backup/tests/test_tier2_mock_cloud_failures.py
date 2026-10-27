@@ -84,6 +84,15 @@ class MockCloudUploadTests(unittest.TestCase):
         fake = self.bin / "rclone"
         fake.write_text(FAKE_RCLONE)
         fake.chmod(0o700)
+        # Model process state, not the host's running Debian session.
+        self.pgrep = self.bin / "pgrep"
+        self.pgrep.write_text("#!/bin/sh\nexit 1\n")
+        self.pgrep.chmod(0o700)
+        self.flock = self.bin / "flock"
+        self.flock.write_text("#!/bin/sh\nexit 0\n")
+        self.flock.chmod(0o700)
+        self.gnupg = self.base / "gnupg"
+        self.gnupg.mkdir(mode=0o700)
         script = SOURCE.read_text()
         script = script.replace('[[ "${PREFIX:-}" == /data/data/com.termux/files/usr ]]', '[[ -n "${FAKE_CLOUD:-}" ]]')
         self.assertIn('[[ "$ROOTFS_DIR" == "$HOME/.andronix/distros/debian/rootfs" ]]', script)
@@ -93,7 +102,7 @@ class MockCloudUploadTests(unittest.TestCase):
                         self.base / "validate_andronix2_archive.py")
 
     def run_snapshot(self, failure=""):
-        env = os.environ.copy()
+        env = {"PATH": os.environ["PATH"], "GNUPGHOME": str(self.gnupg)}
         env.update(
             HOME=str(self.home), PREFIX="/data/data/com.termux/files/usr",
             PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
@@ -134,6 +143,22 @@ class MockCloudUploadTests(unittest.TestCase):
 
     def test_published_checksum_failure_retains_local(self):
         self.assert_retained("final_corrupt")
+
+    def test_lock_denial_blocks_publication(self):
+        self.flock.write_text("#!/bin/sh\nexit 1\n")
+        result = self.run_snapshot()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Another Tier-2 snapshot", result.stderr)
+        self.assertFalse(self.cloud.exists())
+        self.assertFalse(list(self.base.rglob("*.tar.gz.gpg")))
+
+    def test_running_debian_blocks_before_any_output(self):
+        self.pgrep.write_text("#!/bin/sh\nexit 0\n")
+        result = self.run_snapshot()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Stop Debian", result.stderr)
+        self.assertFalse(self.cloud.exists())
+        self.assertFalse(list(self.base.rglob("*.tar.gz.gpg")))
 
     def test_success_removes_local_only_after_cloud_verification(self):
         result = self.run_snapshot()

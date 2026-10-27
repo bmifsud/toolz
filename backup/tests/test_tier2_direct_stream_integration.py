@@ -70,6 +70,15 @@ class DirectStreamTests(unittest.TestCase):
         fake.write_text(FAKE)
         fake.chmod(0o700)
         self.path = str(bin_dir) + os.pathsep + os.environ["PATH"]
+        # Model process state, not the host's running Debian session.
+        self.pgrep = bin_dir / "pgrep"
+        self.pgrep.write_text("#!/bin/sh\nexit 1\n")
+        self.pgrep.chmod(0o700)
+        self.flock = bin_dir / "flock"
+        self.flock.write_text("#!/bin/sh\nexit 0\n")
+        self.flock.chmod(0o700)
+        self.gnupg = self.base / "gnupg"
+        self.gnupg.mkdir(mode=0o700)
         script = SOURCE.read_text()
         guard = '[[ "' + chr(36) + '{PREFIX:-}" == /data/data/com.termux/files/usr ]]'
         replacement = '[[ -n "' + chr(36) + '{FAKE_CLOUD:-}" ]]'
@@ -80,7 +89,7 @@ class DirectStreamTests(unittest.TestCase):
                         self.base / "validate_andronix2_archive.py")
 
     def run_case(self, failure="", overrides=None):
-        env = os.environ.copy()
+        env = {"PATH": os.environ["PATH"], "GNUPGHOME": str(self.gnupg)}
         env.update(HOME=str(self.home), PATH=self.path,
                    PREFIX="/data/data/com.termux/files/usr",
                    BACKUP_PASSPHRASE_FILE=str(self.key),
@@ -123,6 +132,22 @@ class DirectStreamTests(unittest.TestCase):
 
     def test_confirmation_required(self):
         self.assert_no_published_archive(overrides={"TIER2_EXPERIMENTAL_STREAM_CONFIRM": ""})
+
+    def test_lock_denial_blocks_publication(self):
+        self.flock.write_text("#!/bin/sh\nexit 1\n")
+        result = self.run_case()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Another direct-stream backup is running", result.stderr)
+        self.assertFalse(self.cloud.exists())
+        self.assertFalse(list(self.base.rglob("*.tar.gz.gpg")))
+
+    def test_running_debian_blocks_before_any_output(self):
+        self.pgrep.write_text("#!/bin/sh\nexit 0\n")
+        result = self.run_case()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Stop Debian", result.stderr)
+        self.assertFalse(self.cloud.exists())
+        self.assertFalse(list(self.base.rglob("*.tar.gz.gpg")))
 
     def test_success(self):
         result = self.run_case()

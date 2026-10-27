@@ -23,6 +23,8 @@ class EncryptedSyntheticRoundtrip(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="tier2-gpg-fixture-")
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
+        self.gnupg = self.base / "gnupg"
+        self.gnupg.mkdir(mode=0o700)
         self.plain = self.base / "fixture.tar.gz"
         self.encrypted = self.base / "fixture.tar.gz.gpg"
         self.decrypted = self.base / "decrypted.tar.gz"
@@ -34,7 +36,7 @@ class EncryptedSyntheticRoundtrip(unittest.TestCase):
 
     def gpg(self, *args):
         return subprocess.run(
-            ["gpg", "--batch", "--yes", "--no-tty", "--pinentry-mode", "loopback",
+            ["gpg", "--homedir", str(self.gnupg), "--batch", "--yes", "--no-tty", "--pinentry-mode", "loopback",
              "--passphrase-file", str(self.passfile), *map(str, args)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=30,
         )

@@ -9,6 +9,15 @@ SCRIPT=Path(__file__).resolve().parents[1]/'backup_cline_omniroute.sh'
 
 @pytest.fixture
 def sandbox(tmp_path):
+    # Fail closed if the production storage layout changes; never execute it directly.
+    source=SCRIPT.read_text()
+    redirected=source
+    for literal,target,count in (('/mnt/shared',tmp_path/'shared',4),
+                                 ('/sdcard',tmp_path/'sdcard',4)):
+        assert source.count(literal)==count, f'Unexpected storage references: {literal}'
+        redirected=redirected.replace(literal,str(target))
+    assert '/mnt/shared' not in redirected and '/sdcard' not in redirected.replace(str(tmp_path/'sdcard'),'')
+    (tmp_path/SCRIPT.name).write_text(redirected)
     home=tmp_path/'home';home.mkdir()
     workspace=tmp_path/'workspace';workspace.mkdir()
     bins=tmp_path/'bin';bins.mkdir()
@@ -43,12 +52,48 @@ def sandbox(tmp_path):
     return d,home,workspace,calls,mock
 
 def run(sandbox,*args,env=None):
-    d,_,_,_,_=sandbox
-    return subprocess.run(['bash',str(SCRIPT),*args],env=env or d,
+    d,home,_,_,_=sandbox
+    script=home.parent/SCRIPT.name
+    assert script.is_file(), f'Missing isolated script: {script}'
+    return subprocess.run(['bash',str(script),*args],env=env or d,
                           capture_output=True,text=True,timeout=60)
 
-def archive(sandbox):
-    return next((sandbox[1]/'ClineOmniRouteBackups').glob('*.tar.gz.gpg'))
+def archive(sandbox,storage=None):
+    out=(storage if storage is not None else sandbox[1])/'ClineOmniRouteBackups'
+    archives=sorted(out.glob('cline_omniroute_backup_*.tar.gz.gpg'))
+    assert len(archives)==1, f'Expected one backup in {out}; found {archives}'
+    return archives[0]
+
+@pytest.mark.parametrize('selected', ['shared','sdcard'])
+def test_shared_storage_backup_and_retention_are_isolated(sandbox,selected):
+    _,home,workspace,calls,_=sandbox
+    root=home.parent
+    storage=root/selected
+    storage.mkdir()
+    # When both are writable, /mnt/shared must retain priority over /sdcard.
+    other=root/'sdcard' if selected=='shared' else home
+    other.mkdir(exist_ok=True)
+    untouched=other/'ClineOmniRouteBackups'
+    untouched.mkdir()
+    out=storage/'ClineOmniRouteBackups';out.mkdir()
+    for i in range(7):
+        name=f'cline_omniroute_backup_20260101_00000{i}.tar.gz.gpg'
+        old=out/name;old.write_text('old')
+        os.utime(old,(946684800+i,946684800+i))
+        (untouched/name).write_text('untouched')
+    p=run(sandbox,'backup',str(workspace))
+    assert p.returncode==0,p.stderr
+    remaining=list(out.glob('cline_omniroute_backup_*.tar.gz.gpg'))
+    assert len(remaining)==5
+    assert sorted(a.name for a in remaining if a.read_bytes()==b'old')==[
+        f'cline_omniroute_backup_20260101_00000{i}.tar.gz.gpg' for i in range(3,7)]
+    fresh=[a for a in remaining if a.read_bytes()!=b'old']
+    assert len(fresh)==1 and fresh[0].stat().st_size>0
+    assert str(fresh[0]) in calls.read_text()
+    assert len(list(untouched.iterdir()))==7
+    assert all(a.read_text()=='untouched' for a in untouched.iterdir())
+    if selected=='shared':
+        assert not (home/'ClineOmniRouteBackups').exists()
 
 def test_tier1_shell_syntax():
     assert subprocess.run(['bash','-n',str(SCRIPT)]).returncode==0
@@ -93,7 +138,6 @@ def test_local_restore_roundtrip_and_permissions(sandbox,tmp_path):
 def test_restore_missing_archive_rejected(sandbox):
     assert run(sandbox,'--restore','/missing/archive.gpg').returncode!=0
 
-@pytest.mark.xfail(strict=False, reason='Tier-1 restore has no unattended GPG passphrase input; requires device-level acceptance')
 def test_restore_wrong_passphrase_rejected(sandbox):
     assert run(sandbox,'backup',str(sandbox[2])).returncode==0
     d=sandbox[0].copy();d['BACKUP_PASSPHRASE']='incorrect'
