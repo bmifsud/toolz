@@ -79,5 +79,35 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(old.messages, [])
         self.relay.pending.clear()
 
+    async def test_device_disconnect_clears_pending_and_notifies_controller(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/device", headers={"Authorization": "Bearer device-" + "a" * 40})
+            def __init__(self): self.closed = None
+            async def close(self, **kwargs): self.closed = kwargs
+            def __aiter__(self): return self
+            async def __anext__(self): raise StopAsyncIteration
+        class Controller:
+            def __init__(self): self.messages = []
+            async def send(self, message): self.messages.append(json.loads(message))
+        controller = Controller()
+        timer = asyncio.create_task(asyncio.sleep(60))
+        self.relay.pending["request03"] = (controller, timer)
+        await self.relay.handler(FakeSocket())
+        self.assertNotIn("request03", self.relay.pending)
+        self.assertTrue(timer.cancelled())
+        self.assertEqual(controller.messages[0]["message"], "device disconnected")
+
+    async def test_controller_disconnect_cancels_its_pending_requests(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/controller", headers={"Authorization": "Bearer controller-" + "b" * 40})
+            def __aiter__(self): return self
+            async def __anext__(self): raise StopAsyncIteration
+        ws = FakeSocket()
+        timer = asyncio.create_task(asyncio.sleep(60))
+        self.relay.pending["request04"] = (ws, timer)
+        await self.relay.handler(ws)
+        self.assertNotIn("request04", self.relay.pending)
+        self.assertTrue(timer.cancelled())
+
 if __name__ == "__main__":
     unittest.main()
