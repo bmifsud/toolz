@@ -6,7 +6,6 @@ import os
 import ssl
 import sys
 from pathlib import Path
-from urllib.parse import quote
 from websockets.asyncio.client import connect
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from readonly_runner import run
@@ -21,7 +20,7 @@ async def main():
     seen = set()
     while not STOP.exists():
         try:
-            async with connect(URL + "/device?token=" + quote(TOKEN, safe=""), max_size=8192, ping_interval=20) as ws:
+            async with connect(URL + "/device", additional_headers={"Authorization": "Bearer " + TOKEN}, max_size=8192, ping_interval=20) as ws:
                 print("[bridge] Connected; waiting for authorized requests", flush=True)
                 async for raw in ws:
                     if STOP.exists():
