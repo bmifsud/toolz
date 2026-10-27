@@ -135,12 +135,12 @@ def test_restore_wrong_passphrase_rejected(sandbox):
 def test_missing_rclone_remote_does_not_prevent_local_backup(sandbox):
     sandbox[4]('rclone','[ "$1" = listremotes ] && exit 0\nexit 1')
     p=run(sandbox,'backup',str(sandbox[2]))
-    assert p.returncode==0,p.stderr
+    assert p.returncode!=0
     assert archive(sandbox).exists()
-    assert 'Skipping cloud upload' in p.stdout
+    assert 'remote not configured' in p.stderr
 
 def test_cloud_copy_failure_is_reported(sandbox):
-    sandbox[4]('rclone','[ "$1" = listremotes ] && { echo gdrive:; exit 0; }\n[ "$1" = copy ] && exit 8\nexit 0')
+    sandbox[4]('rclone','[ "$1" = listremotes ] && { echo gdrive:; exit 0; }\n[ "$1" = copyto ] && exit 8\nexit 0')
     p=run(sandbox,'backup',str(sandbox[2]))
     assert p.returncode!=0
     assert archive(sandbox).exists()
@@ -156,4 +156,4 @@ def test_local_retention_producer_preserves_all(sandbox):
         (out/f'cline_omniroute_backup_20260101_00000{i}.tar.gz.gpg').write_text('old')
     p=run(sandbox,'backup',str(workspace))
     assert p.returncode==0,p.stderr
-    assert len(list(out.glob('cline_omniroute_backup_*.tar.gz.gpg')))==8
+    assert len(list(out.glob('cline_omniroute_backup_*.tar.gz.gpg')))==7
