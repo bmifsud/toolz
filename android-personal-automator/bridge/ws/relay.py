@@ -19,6 +19,8 @@ CONTROLLER_TOKEN = os.environ["BRIDGE_CONTROLLER_TOKEN"]
 if len(DEVICE_TOKEN) < 32 or len(CONTROLLER_TOKEN) < 32 or DEVICE_TOKEN == CONTROLLER_TOKEN:
     raise SystemExit("Use distinct random tokens of at least 32 characters")
 device = None
+MAX_PENDING = 16
+MAX_MESSAGE = 8192
 
 async def handler(ws):
     global device
@@ -37,6 +39,9 @@ async def handler(ws):
         device = ws
         try:
             async for message in ws:
+                if len(message) > MAX_MESSAGE:
+                    await ws.close(code=1009)
+                    break
                 # Device results are forwarded only to the controller that requested them.
                 try:
                     payload = json.loads(message)
@@ -58,6 +63,9 @@ async def handler(ws):
     else:
         try:
             async for message in ws:
+                if len(message) > MAX_MESSAGE:
+                    await ws.close(code=1009)
+                    break
                 try:
                     data = json.loads(message)
                     if not isinstance(data, dict) or set(data) != {"id", "diagnostic"}:
@@ -67,10 +75,15 @@ async def handler(ws):
                     if device is None:
                         await ws.send(json.dumps({"type":"error","id":data["id"],"message":"device offline"}))
                         continue
-                    if data["id"] in pending:
+                    if data["id"] in pending or len(pending) >= MAX_PENDING:
+                        await ws.send(json.dumps({"type":"error","id":data["id"],"message":"duplicate or busy"}))
                         continue
                     pending[data["id"]] = ws
-                    await device.send(json.dumps({"type":"request", **data}))
+                    try:
+                        await asyncio.wait_for(device.send(json.dumps({"type":"request", **data})), timeout=5)
+                    except (OSError, RuntimeError, ConnectionError, asyncio.TimeoutError):
+                        pending.pop(data["id"], None)
+                        await ws.send(json.dumps({"type":"error","id":data["id"],"message":"device unavailable"}))
                 except (ValueError, TypeError):
                     continue
         except WebSocketDisconnect:
