@@ -22,7 +22,7 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
             get = client.get("/healthz")
             head = client.head("/healthz")
         self.assertEqual(get.status_code, 200)
-        self.assertEqual(get.text, "ok\\n")
+        self.assertEqual(get.text, "ok\n")
         self.assertEqual(head.status_code, 200)
         self.assertEqual(head.content, b"")
 
