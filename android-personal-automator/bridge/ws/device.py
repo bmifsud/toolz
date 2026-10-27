@@ -4,12 +4,13 @@ import asyncio
 import json
 import os
 import ssl
+import signal
 import sys
 from pathlib import Path
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from readonly_runner import run
+from readonly_runner import COMMANDS
 
 URL = os.environ["BRIDGE_WS_URL"].rstrip("/")
 TOKEN = os.environ["BRIDGE_DEVICE_TOKEN"]
@@ -18,12 +19,48 @@ if not URL.startswith("wss://") or len(TOKEN) < 32:
     raise SystemExit("Require wss:// and a long device token")
 
 async def run_diagnostic(ws, request_id, diagnostic):
-    """Run the fixed allowlisted diagnostic without blocking the event loop."""
-    result = await asyncio.to_thread(run, diagnostic)
-    if STOP.exists():
-        return
-    print(f"[bridge] exit={result.get('exit_code')} stdout={result.get('stdout', '').rstrip()}", flush=True)
-    await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
+    """Execute only allowlisted commands; stop the subprocess on cancellation."""
+    command = COMMANDS[diagnostic]
+    cwd = None
+    if diagnostic == "tier1-tests":
+        checkout = Path.home() / "toolz-tier1-test"
+        if not (checkout / "backup/tests/test_tier1.py").is_file():
+            await ws.send(json.dumps({"type": "result", "id": request_id,
+                "result": {"diagnostic": diagnostic, "error": "test checkout missing", "exit_code": 2}}))
+            return
+        cwd = str(checkout)
+    process = await asyncio.create_subprocess_exec(
+        *command, cwd=cwd, stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE, start_new_session=True)
+    try:
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=120 if diagnostic == "tier1-tests" else 10)
+            result = {"diagnostic": diagnostic, "exit_code": process.returncode,
+                      "stdout": stdout.decode("utf-8", errors="replace")[:4096],
+                      "stderr": stderr.decode("utf-8", errors="replace")[:1024]}
+        except asyncio.TimeoutError:
+            result = {"diagnostic": diagnostic, "error": "timeout"}
+            raise
+        if not STOP.exists():
+            await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
+    except asyncio.TimeoutError:
+        if not STOP.exists():
+            await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
+    finally:
+        if process.returncode is None:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(process.wait(), timeout=2)
+            except asyncio.TimeoutError:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                await process.wait()
 
 async def main():
     seen = set()
