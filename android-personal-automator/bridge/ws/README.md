@@ -1,6 +1,6 @@
 # Termux command bridge — deployment and verification
 
-> **Status (2026-10-27):** Experimental. GitHub issue polling has executed `git-branch` on the tablet. The separate Render WebSocket relay is Live on commit `9ba544e`; its `/healthz` endpoint has CI tests but has not been independently checked over the public URL. Device WebSocket connection and controller-to-device roundtrip remain unverified. No production-ready remote shell exists.
+> **Status (2026-10-27):** Experimental. Render WebSocket relay deployment `6e5b712` is Live (15:52:56 UTC). A user-run controller previously received a `git-branch` result from the tablet. This does not establish a current connection or ChatGPT-to-device execution. The `/healthz` endpoint has not been independently verified over the public URL. No production-ready remote shell exists.
 
 ## Components and boundaries
 
@@ -18,7 +18,7 @@ The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard htt
 
 ## Security model
 
-- Only `git-branch` is allowed through the WebSocket transport, even though the local runner supports other diagnostics.
+- Only `git-branch` and `tier1-tests` are allowed through the WebSocket transport; the device must have the updated client and runner for `tier1-tests`.
 - No arbitrary shell, writes, APK installs, screenshots, backup operations or privileged Android commands.
 - Device connects outward over `wss://`; controller must be separately authenticated.
 - Distinct random secrets (minimum 32 characters): `BRIDGE_DEVICE_TOKEN` and `BRIDGE_CONTROLLER_TOKEN`. Set in Render environment, **never** commit, paste into issues, or expose in logs. Headers use `Authorization: Bearer ...`.
@@ -35,7 +35,7 @@ The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard htt
 4. Set **both** private environment variables in Render:
    - `BRIDGE_DEVICE_TOKEN` — independently generated random secret, 32+ characters.
    - `BRIDGE_CONTROLLER_TOKEN` — different independently generated random secret, 32+ characters.
-5. Redeploy (auto-deploy is off), then inspect deploy status and application logs. Expect `Relay listening on 0.0.0.0:<PORT>`. If the process exits with `KeyError: 'BRIDGE_DEVICE_TOKEN'`, the device token is not configured. Confirm TLS/WSS endpoint before tablet testing.
+5. Configure Render's **Health Check Path** as `/healthz` in the service settings. This is a configuration change, not a WebSocket command; verify GET returns HTTP 200. The current service configuration was inspected and the health-check path is empty. Requests using HEAD against the WebSocket endpoint may still produce handshake tracebacks; do not mistake those for proof of a failed device connection. Redeploy (auto-deploy is off), then inspect deploy status and application logs. Expect `Relay listening on 0.0.0.0:<PORT>`. If the process exits with `KeyError: 'BRIDGE_DEVICE_TOKEN'`, the device token is not configured. Confirm TLS/WSS endpoint before tablet testing.
 6. Render free services can sleep or restart; do not assume uninterrupted connectivity.
 
 ## Tablet installation (manual consent required)
