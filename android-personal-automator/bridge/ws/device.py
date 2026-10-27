@@ -74,7 +74,7 @@ async def main():
                             break
                         try:
                             data = json.loads(raw)
-                            if not isinstance(data, dict) or data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests"):
+                            if not isinstance(data, dict) or data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests", "ssh-status"):
                                 continue
                             request_id = data.get("id")
                             if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
