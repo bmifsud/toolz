@@ -21,7 +21,7 @@ if len(DEVICE_TOKEN) < 32 or len(CONTROLLER_TOKEN) < 32 or DEVICE_TOKEN == CONTR
 device = None
 MAX_PENDING = 16
 MAX_MESSAGE = 8192
-REQUEST_TIMEOUT = 30
+REQUEST_TIMEOUT = 360
 
 async def expire_request(request_id, controller):
     try:
@@ -90,7 +90,7 @@ async def handler(ws):
                     data = json.loads(message)
                     if not isinstance(data, dict) or set(data) != {"id", "diagnostic"}:
                         continue
-                    if data["diagnostic"] not in ("git-branch", "tier1-tests", "ssh-status") or not isinstance(data["id"], str) or not (8 <= len(data["id"]) <= 64) or not data["id"].replace("-", "").replace("_", "").isalnum():
+                    if data["diagnostic"] not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr") or not isinstance(data["id"], str) or not (8 <= len(data["id"]) <= 64) or not data["id"].replace("-", "").replace("_", "").isalnum():
                         continue
                     if device is None:
                         await ws.send(json.dumps({"type":"error","id":data["id"],"message":"device offline"}))
