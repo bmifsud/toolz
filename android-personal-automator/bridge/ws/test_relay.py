@@ -109,5 +109,30 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("request04", self.relay.pending)
         self.assertTrue(timer.cancelling())
 
+    async def test_controller_oversize_message_closes_connection(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/controller", headers={"Authorization": "Bearer controller-" + "b" * 40})
+            def __init__(self): self.closed = None
+            async def close(self, **kwargs): self.closed = kwargs
+            def __aiter__(self): return self
+            async def __anext__(self):
+                if getattr(self, "read", False): raise StopAsyncIteration
+                self.read = True
+                return "x" * (self_limit + 1)
+        self_limit = self.relay.MAX_MESSAGE
+        ws = FakeSocket()
+        await self.relay.handler(ws)
+        self.assertEqual(ws.closed["code"], 1009)
+
+    async def test_second_device_connection_rejected(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/device", headers={"Authorization": "Bearer device-" + "a" * 40})
+            def __init__(self): self.closed = None
+            async def close(self, **kwargs): self.closed = kwargs
+        self.relay.device = object()
+        ws = FakeSocket()
+        await self.relay.handler(ws)
+        self.assertEqual(ws.closed["code"], 1008)
+
 if __name__ == "__main__":
     unittest.main()
