@@ -81,13 +81,21 @@ def poll_once(state_dir=STATE_DIR, now=None):
         os.replace(tmp, state)
         show(f"REQUEST RECEIVED id={request['id']} diagnostic={request['diagnostic']}")
         show(f"AUTHORIZED — executing: $ {DISPLAY_COMMANDS[request['diagnostic']]}")
+        started_at = dt.datetime.now(dt.timezone.utc)
+        started_ns = time.monotonic_ns()
         result = run(request["diagnostic"])
-        show(f"COMPLETED exit={result.get('exit_code', 'unknown')}")
+        finished_at = dt.datetime.now(dt.timezone.utc)
+        duration_ms = max(0, (time.monotonic_ns() - started_ns) // 1_000_000)
+        show(f"COMPLETED exit={result.get('exit_code', 'unknown')} duration={duration_ms}ms")
         for stream in ("stdout", "stderr"):
             output = result.get(stream, "")
             if output:
                 show(f"{stream.upper()}:\n{output.rstrip()}")
-        payload = {"id": request["id"], "result": result}
+        payload = {"id": request["id"], "result": result,
+                   "receipt": {"started_at": started_at.isoformat(),
+                               "finished_at": finished_at.isoformat(),
+                               "duration_ms": duration_ms,
+                               "command": DISPLAY_COMMANDS[request["diagnostic"]]}}
         gh("api", f"repos/{REPO}/issues/{ISSUE}/comments",
            "--method", "POST", "-f", "body=" + RESULT + json.dumps(payload))
         show(f"RESULT POSTED id={request['id']}")
