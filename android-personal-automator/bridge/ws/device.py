@@ -16,8 +16,17 @@ STOP = Path.home() / ".local/state/toolz-termux-bridge/STOP"
 if not URL.startswith("wss://") or len(TOKEN) < 32:
     raise SystemExit("Require wss:// and a long device token")
 
+async def run_diagnostic(ws, request_id, diagnostic):
+    """Run the fixed allowlisted diagnostic without blocking the event loop."""
+    result = await asyncio.to_thread(run, diagnostic)
+    if STOP.exists():
+        return
+    print(f"[bridge] exit={result.get('exit_code')} stdout={result.get('stdout', '').rstrip()}", flush=True)
+    await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
+
 async def main():
     seen = set()
+    active = set()
     while not STOP.exists():
         try:
             async with connect(URL + "/device", additional_headers={"Authorization": "Bearer " + TOKEN}, max_size=8192, ping_interval=20) as ws:
@@ -34,13 +43,15 @@ async def main():
                             continue
                         seen.add(request_id)
                         print(f"[bridge] REQUEST {request_id}: {data['diagnostic']}", flush=True)
-                        result = run(data["diagnostic"])
-                        print(f"[bridge] exit={result.get('exit_code')} stdout={result.get('stdout', '').rstrip()}", flush=True)
-                        await ws.send(json.dumps({"type":"result","id":request_id,"result":result}))
+                        task = asyncio.create_task(run_diagnostic(ws, request_id, data["diagnostic"]))
+                        active.add(task)
+                        task.add_done_callback(active.discard)
                     except (ValueError, TypeError, AttributeError):
                         continue
         except (OSError, TimeoutError) as exc:
             print(f"[bridge] Disconnected: {type(exc).__name__}; retrying", flush=True)
+        if STOP.exists():
+            break
         await asyncio.sleep(5)
     print("[bridge] STOP requested", flush=True)
 
