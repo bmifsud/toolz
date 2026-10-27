@@ -13,11 +13,14 @@ TOKEN = os.environ.get("BRIDGE_CONTROLLER_TOKEN", "")
 async def main():
     if not URL.startswith("wss://") or len(TOKEN) < 32:
         raise SystemExit("Set BRIDGE_CONTROLLER_TOKEN (32+ characters) and a wss:// URL")
+    diagnostic = sys.argv[1] if len(sys.argv) > 1 else "git-branch"
+    if diagnostic not in ("git-branch", "tier1-tests"):
+        raise SystemExit("Unsupported diagnostic")
     request_id = "cli-" + secrets.token_hex(12)
     print(f"[controller] connecting to {URL}/controller", flush=True)
     async with connect(URL + "/controller", additional_headers={"Authorization": "Bearer " + TOKEN}, open_timeout=15, max_size=8192) as ws:
-        await ws.send(json.dumps({"id": request_id, "diagnostic": "git-branch"}))
-        print(f"[controller] sent {request_id}: git-branch", flush=True)
+        await ws.send(json.dumps({"id": request_id, "diagnostic": diagnostic}))
+        print(f"[controller] sent {request_id}: {diagnostic}", flush=True)
         while True:
             response = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
             if response.get("id") != request_id:
