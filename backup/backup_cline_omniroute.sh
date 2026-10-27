@@ -1,32 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Detect Android Shared Storage or Andronix Debian rootfs backup output directory
+# Tier-1 must run in Termux, outside the Andronix rootfs.
+# Keep encrypted archives in a private persistent queue until verified remotely.
+umask 077
 if [ -n "${ANDROID_OUT:-}" ]; then
   :
 elif [ -n "${TIER1_LOCAL_DIR:-}" ]; then
   ANDROID_OUT="$TIER1_LOCAL_DIR"
-elif [ -n "${ROOTFS_DIR:-}" ]; then
-  ANDROID_OUT="${ROOTFS_DIR}/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
-elif [ -d "$HOME/.andronix/distros/debian/rootfs" ]; then
-  ANDROID_OUT="$HOME/.andronix/distros/debian/rootfs/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
-elif [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
-  ANDROID_OUT="/mnt/shared/ClineOmniRouteBackups"
-elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then
-  ANDROID_OUT="/sdcard/ClineOmniRouteBackups"
 else
-  ANDROID_OUT="$HOME/ClineOmniRouteBackups"
+  ANDROID_OUT="$HOME/.local/state/toolz-backup/pending"
 fi
-
-GDRIVE_REMOTE="gdrive:ClineOmniRouteBackups"
+GDRIVE_REMOTE="${GDRIVE_REMOTE:-gdrive:ClineOmniRouteBackups}"
 mkdir -p "$ANDROID_OUT"
+ANDROID_OUT=$(cd "$ANDROID_OUT" && pwd -P)
+case "$ANDROID_OUT/" in
+  *"/.andronix/distros/"*|*"/rootfs/"*)
+    echo "Error: Tier-1 output must be outside the Andronix rootfs" >&2; exit 1 ;;
+esac
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-# Private staging also protects copied secrets and SQLite exports.
-umask 077
-# Termux supplies TMPDIR; HOME is a portable fallback when it is unset.
-# Fail closed if the selected location cannot allocate a private directory.
 WORK_DIR=$(mktemp -d "${TMPDIR:-$HOME}/cline_omni_backup.XXXXXX")
-trap 'rm -rf "$WORK_DIR"' EXIT
+trap 'rm -rf -- "$WORK_DIR"' EXIT
+
+# Never expose a passphrase in command-line arguments.
+gpg_passphrase_args=()
+if [ -n "${BACKUP_PASSPHRASE_FILE:-}" ]; then
+  [ -r "$BACKUP_PASSPHRASE_FILE" ] || { echo "Passphrase file unreadable" >&2; exit 1; }
+  gpg_passphrase_args=(--batch --pinentry-mode loopback --passphrase-file "$BACKUP_PASSPHRASE_FILE")
+elif [ -n "${BACKUP_PASSPHRASE:-}" ]; then
+  gpg_passphrase_args=(--batch --pinentry-mode loopback --passphrase-fd 3)
+fi
 
 MODE="${1:-backup}"
 
@@ -56,10 +59,10 @@ if [ "$MODE" = "--restore" ]; then
   fi
 
   echo "[1/4] Decrypting and extracting backup archive..."
-  if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
-    gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --decrypt "$ARCHIVE_PATH" | tar -xzp -C "$WORK_DIR"
+  if [ -n "${BACKUP_PASSPHRASE:-}" ] && [ -z "${BACKUP_PASSPHRASE_FILE:-}" ]; then
+    gpg "${gpg_passphrase_args[@]}" --decrypt "$ARCHIVE_PATH" 3<<<"$BACKUP_PASSPHRASE" | tar -xzp -C "$WORK_DIR"
   else
-    gpg --decrypt "$ARCHIVE_PATH" | tar -xzp -C "$WORK_DIR"
+    gpg "${gpg_passphrase_args[@]}" --decrypt "$ARCHIVE_PATH" | tar -xzp -C "$WORK_DIR"
   fi
 
   echo "[2/4] Restoring Cline CLI global state, MCP settings, and chmod 600 secrets..."
@@ -132,19 +135,29 @@ for dir in .clinerules .memory .cline; do
 done
 
 echo "[4/5] Compressing and encrypting archive (AES-256) to $ANDROID_OUT..."
-OUT_FILE="$ANDROID_OUT/cline_omniroute_backup_${TIMESTAMP}.tar.gz.gpg"
-if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
-  tar -czp -C "$WORK_DIR" . | gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" --symmetric --cipher-algo AES256 -o "$OUT_FILE"
+OUT_FILE="$ANDROID_OUT/cline_omniroute_backup_${TIMESTAMP}_$$.tar.gz.gpg"
+if [ -n "${BACKUP_PASSPHRASE:-}" ] && [ -z "${BACKUP_PASSPHRASE_FILE:-}" ]; then
+  tar -czp -C "$WORK_DIR" . | gpg "${gpg_passphrase_args[@]}" --symmetric --cipher-algo AES256 -o "$OUT_FILE" 3<<<"$BACKUP_PASSPHRASE"
 else
-  tar -czp -C "$WORK_DIR" . | gpg --symmetric --cipher-algo AES256 -o "$OUT_FILE"
+  tar -czp -C "$WORK_DIR" . | gpg "${gpg_passphrase_args[@]}" --symmetric --cipher-algo AES256 -o "$OUT_FILE"
 fi
-
 echo "Local encrypted backup saved: $OUT_FILE"
 
-echo "[5/5] Syncing encrypted archive to Google Drive ($GDRIVE_REMOTE)..."
-if command -v rclone >/dev/null 2>&1 && rclone listremotes | grep -q "^gdrive:$"; then
-  rclone copy "$OUT_FILE" "$GDRIVE_REMOTE/" --progress
-  echo "Google Drive upload complete!"
-else
-  echo "Warning: rclone remote 'gdrive:' not configured. Skipping cloud upload (run 'rclone config' to enable)."
+echo "[5/5] Uploading and verifying encrypted archive ($GDRIVE_REMOTE)..."
+if ! command -v rclone >/dev/null 2>&1; then
+  echo "Error: rclone unavailable; retaining $OUT_FILE" >&2; exit 1
 fi
+if ! rclone listremotes | grep -Fxq "${GDRIVE_REMOTE%%:*}:"; then
+  echo "Error: remote not configured; retaining $OUT_FILE" >&2; exit 1
+fi
+BASENAME=${OUT_FILE##*/}
+# Copy only the new archive. Never delete an older remote backup.
+if ! rclone copyto "$OUT_FILE" "$GDRIVE_REMOTE/$BASENAME"; then
+  echo "Error: upload failed; retaining $OUT_FILE" >&2; exit 1
+fi
+# --download compares file bytes even if the remote offers no common hashes.
+if ! rclone check "$ANDROID_OUT" "$GDRIVE_REMOTE" --include "/$BASENAME" --one-way --download; then
+  echo "Error: remote verification failed; retaining $OUT_FILE" >&2; exit 1
+fi
+rm -f -- "$OUT_FILE"
+echo "Verified remote archive; local encrypted copy deleted."
