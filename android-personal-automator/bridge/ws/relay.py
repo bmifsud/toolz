@@ -85,7 +85,7 @@ pending = {}
 async def process_request(connection, request):
     """Retained for the offline health endpoint contract test."""
     if request.path == "/healthz":
-        return SimpleNamespace(status_code=200, body=b"ok\\n")
+        return SimpleNamespace(status_code=200, body=b"ok\n")
     return None
 
 class SocketAdapter:
@@ -117,7 +117,7 @@ async def websocket_endpoint(socket):
     await handler(SocketAdapter(socket))
 
 async def healthz(request):
-    return PlainTextResponse("ok\\n", headers={"Cache-Control": "no-store"})
+    return PlainTextResponse("ok\n", headers={"Cache-Control": "no-store"})
 
 app = Starlette(routes=[
     Route("/healthz", healthz, methods=["GET", "HEAD"]),
