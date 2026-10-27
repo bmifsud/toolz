@@ -18,10 +18,22 @@ class RunnerTests(unittest.TestCase):
     def test_allowlist_argv_and_bounds(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, "a" * 6000, "b" * 2000)
         result = runner.run("adb")
-        mock_run.assert_called_once_with(["adb", "devices"], capture_output=True,
+        mock_run.assert_called_once_with(["adb", "devices"], cwd=None, capture_output=True,
                                          text=True, timeout=10, check=False)
         self.assertEqual(len(result["stdout"]), 4096)
         self.assertEqual(len(result["stderr"]), 1024)
+
+    @patch.object(runner.subprocess, "run")
+    def test_tier1_tests_uses_fixed_checkout_and_timeout(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0, "12 passed", "")
+        with patch.object(runner.Path, "home", return_value=pathlib.Path("/home/tester")):
+            with patch.object(runner.Path, "is_file", return_value=True):
+                result = runner.run("tier1-tests")
+        mock_run.assert_called_once_with(
+            ["python", "-m", "pytest", "backup/tests/test_tier1.py", "-q", "-rx"],
+            cwd="/home/tester/toolz-tier1-test", capture_output=True,
+            text=True, timeout=120, check=False)
+        self.assertEqual(result["exit_code"], 0)
 
     @patch.object(runner.subprocess, "run", side_effect=subprocess.TimeoutExpired(["adb"], 10))
     def test_timeout(self, _):
@@ -30,9 +42,12 @@ class RunnerTests(unittest.TestCase):
     @patch.object(runner.subprocess, "run")
     def test_all_commands_are_fixed_argv(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, "", "")
-        for name in runner.COMMANDS:
-            runner.run(name)
-        self.assertEqual(mock_run.call_count, len(runner.COMMANDS))
+        with patch.object(runner.Path, "home") as home:
+            home.return_value = pathlib.Path("/nonexistent-test-checkout")
+            for name in runner.COMMANDS:
+                runner.run(name)
+        self.assertEqual(mock_run.call_count, len(runner.COMMANDS) - 1)
+        self.assertEqual(runner.run("tier1-tests")["error"], "test checkout missing")
         self.assertTrue(all(isinstance(v, list) for v in runner.COMMANDS.values()))
 
 if __name__ == "__main__":
