@@ -174,3 +174,39 @@ def test_local_retention_producer_preserves_all(sandbox):
     p=run(sandbox,'backup',str(workspace))
     assert p.returncode==0,p.stderr
     assert len(list(out.glob('cline_omniroute_backup_*.tar.gz.gpg')))==7
+
+
+def test_prefers_live_debian_sqlite_over_termux_copy(sandbox,tmp_path):
+    d,home,workspace,_,_=sandbox
+    debian=tmp_path/'debian-storage.sqlite'
+    conn=sqlite3.connect(debian)
+    conn.execute('CREATE TABLE state (value TEXT)')
+    conn.execute("INSERT INTO state VALUES ('debian-live')")
+    conn.commit();conn.close()
+    env=d.copy();env['OMNIROUTE_DEBIAN_DB']=str(debian)
+    p=run(sandbox,'backup',str(workspace),env=env)
+    assert p.returncode==0,p.stderr
+    encrypted=next(Path(d['TEST_REMOTE']).glob('*.gpg'))
+    decrypted=subprocess.run(
+        ['gpg','--batch','--yes','--pinentry-mode','loopback',
+         '--passphrase',d['BACKUP_PASSPHRASE'],'-d',str(encrypted)],
+        capture_output=True,env=d,check=True)
+    import io,tarfile
+    with tarfile.open(fileobj=io.BytesIO(decrypted.stdout),mode='r:gz') as tf:
+        member=tf.extractfile('./omniroute/storage.sqlite')
+        assert member is not None
+        restored=tmp_path/'verified.sqlite'
+        restored.write_bytes(member.read())
+    conn=sqlite3.connect(restored)
+    assert conn.execute('SELECT value FROM state').fetchone()[0]=='debian-live'
+    conn.close()
+
+def test_missing_both_sqlite_sources_fails_closed(sandbox):
+    d,home,workspace,_,_=sandbox
+    (home/'.omniroute'/'storage.sqlite').unlink()
+    env=d.copy()
+    env['OMNIROUTE_DEBIAN_DB']=str(home/'missing-debian.sqlite')
+    p=run(sandbox,'backup',str(workspace),env=env)
+    assert p.returncode!=0
+    assert 'refusing incomplete Tier-1 backup' in p.stderr
+    assert not list(Path(d['TEST_REMOTE']).glob('*.gpg'))
