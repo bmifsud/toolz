@@ -19,7 +19,10 @@ if not URL.startswith("wss://") or len(TOKEN) < 32:
 
 async def run_diagnostic(ws, request_id, diagnostic):
     """Execute only allowlisted commands; stop the subprocess on cancellation."""
-    command = COMMANDS[diagnostic]
+    if diagnostic == "git-sync-pr":
+        command = [sys.executable, str(Path(__file__).with_name("git_sync_pr.py"))]
+    else:
+        command = COMMANDS[diagnostic]
     cwd = None
     if diagnostic == "tier1-tests":
         checkout = Path.home() / "toolz-tier1-test"
@@ -34,7 +37,7 @@ async def run_diagnostic(ws, request_id, diagnostic):
     try:
         try:
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=120 if diagnostic == "tier1-tests" else 10)
+                process.communicate(), timeout=300 if diagnostic == "git-sync-pr" else 120 if diagnostic == "tier1-tests" else 10)
             result = {"diagnostic": diagnostic, "exit_code": process.returncode,
                       "stdout": stdout.decode("utf-8", errors="replace")[:4096],
                       "stderr": stderr.decode("utf-8", errors="replace")[:1024]}
@@ -74,7 +77,7 @@ async def main():
                             break
                         try:
                             data = json.loads(raw)
-                            if not isinstance(data, dict) or data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests", "ssh-status"):
+                            if not isinstance(data, dict) or data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr"):
                                 continue
                             request_id = data.get("id")
                             if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
