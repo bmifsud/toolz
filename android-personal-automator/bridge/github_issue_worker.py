@@ -10,6 +10,12 @@ import subprocess
 import time
 from readonly_runner import run
 
+DISPLAY_COMMANDS = {"git-branch": "git branch --show-current"}
+
+def show(message):
+    stamp = dt.datetime.now().astimezone().strftime("%H:%M:%S")
+    print(f"[{stamp}] {message}", flush=True)
+
 REPO = "bmifsud/toolz"
 ISSUE = 24
 OWNER = "bmifsud"
@@ -73,11 +79,18 @@ def poll_once(state_dir=STATE_DIR, now=None):
         tmp.write_text(json.dumps(sorted(seen)))
         tmp.chmod(0o600)
         os.replace(tmp, state)
+        show(f"REQUEST RECEIVED id={request['id']} diagnostic={request['diagnostic']}")
+        show(f"AUTHORIZED — executing: $ {DISPLAY_COMMANDS[request['diagnostic']]}")
         result = run(request["diagnostic"])
+        show(f"COMPLETED exit={result.get('exit_code', 'unknown')}")
+        for stream in ("stdout", "stderr"):
+            output = result.get(stream, "")
+            if output:
+                show(f"{stream.upper()}:\n{output.rstrip()}")
         payload = {"id": request["id"], "result": result}
         gh("api", f"repos/{REPO}/issues/{ISSUE}/comments",
            "--method", "POST", "-f", "body=" + RESULT + json.dumps(payload))
-        print("Posted result for", request["id"])
+        show(f"RESULT POSTED id={request['id']}")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -91,7 +104,7 @@ def main():
     if stop.exists():
         print("STOP file exists; remove it manually before starting")
         return
-    print("Polling issue #24; stop with Ctrl-C or: touch", stop, flush=True)
+    show(f"CONNECTED — polling issue #{ISSUE} every {args.interval}s; stop with Ctrl-C or: touch {stop}")
     try:
         while not stop.exists():
             try:
