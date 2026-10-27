@@ -18,3 +18,5 @@ jobs:
           python-version: '3.13'
       - name: Run bridge unit tests
         run: python -m unittest discover -s android-personal-automator/bridge -p 'test_*.py' -v
+      - name: Validate Termux supervisor shell syntax
+        run: bash -n android-personal-automator/bridge/live_update_termux.sh
