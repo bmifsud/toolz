@@ -20,6 +20,7 @@ def reject(message):
 def validate(stream):
     seen = set()
     symlinks = set()
+    parents = set()
     found_root = found_launcher = False
     required = {ROOT + "/etc/passwd", ROOT + "/etc/os-release"}
     found_required = set()
@@ -54,6 +55,9 @@ def validate(stream):
             for i in range(1, len(parts)):
                 if "/".join(parts[:i]) in symlinks:
                     reject("member under symlink " + repr(name))
+            if not member.isdir() and name in parents:
+                reject("non-directory ancestor " + repr(name))
+            parents.update("/".join(parts[:i]) for i in range(1, len(parts)))
             if member.issym():
                 target = member.linkname
                 if not target or "\x00" in target:
@@ -67,7 +71,7 @@ def validate(stream):
                         if part in ("", "."):
                             continue
                         if part == "..":
-                            if not resolved:
+                            if len(resolved) <= len(ROOT.split("/")):
                                 reject("escaping symlink " + repr(name))
                             resolved.pop()
                         else:

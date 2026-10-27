@@ -66,6 +66,26 @@ class IsolatedExtractorTests(unittest.TestCase):
         with self.assertRaises((ValueError, OSError)):
             extract(self.archive, self.dest)
 
+    def test_reject_relative_escape_then_reentry(self):
+        fixture(self.archive, [(ROOT + "/link", tarfile.SYMTYPE, "../rootfs/etc/passwd")])
+        with self.assertRaises(ValueError):
+            extract(self.archive, self.dest)
+
+    def test_archived_links_never_write_outside_destination(self):
+        outside = self.base / "outside"
+        outside.mkdir()
+        sentinel = outside / "payload"
+        sentinel.write_text("unchanged")
+        for reverse in (False, True):
+            entries = [
+                (ROOT + "/redirect", tarfile.SYMTYPE, str(outside)),
+                (ROOT + "/redirect/payload", tarfile.REGTYPE, ""),
+            ]
+            fixture(self.archive, entries[::-1] if reverse else entries)
+            with self.assertRaises((ValueError, OSError)):
+                extract(self.archive, self.base / ("reverse" if reverse else "forward"))
+            self.assertEqual(sentinel.read_text(), "unchanged")
+
     def test_reject_corrupt_gzip_without_success(self):
         self.archive.write_bytes(b"not a gzip stream")
         with self.assertRaises((tarfile.TarError, OSError)):

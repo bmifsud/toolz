@@ -78,7 +78,7 @@ def extract(source, destination):
                             if part in ("", "."):
                                 continue
                             if part == "..":
-                                if not resolved:
+                                if len(resolved) <= len(ROOT.split("/")):
                                     reject("escaping symlink")
                                 resolved.pop()
                             else:

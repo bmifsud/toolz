@@ -76,6 +76,21 @@ class ArchiveValidationTests(unittest.TestCase):
         ]
         self.assertNotEqual(self.run_validator(archive_bytes(entries)).returncode, 0)
 
+    def test_reject_child_before_symlink_parent(self):
+        entries = [
+            (ROOT + "/etc/link/file", tarfile.REGTYPE, ""),
+            (ROOT + "/etc/link", tarfile.SYMTYPE, "/tmp"),
+        ]
+        self.assertNotEqual(self.run_validator(archive_bytes(entries)).returncode, 0)
+
+    def test_relative_symlink_inside_rootfs(self):
+        entries = [(ROOT + "/etc/alternatives/awk", tarfile.SYMTYPE, "../../usr/bin/mawk")]
+        self.assertEqual(self.run_validator(archive_bytes(entries)).returncode, 0)
+
+    def test_reject_relative_escape_then_reentry(self):
+        entries = [(ROOT + "/link", tarfile.SYMTYPE, "../rootfs/etc/passwd")]
+        self.assertNotEqual(self.run_validator(archive_bytes(entries)).returncode, 0)
+
     def test_reject_truncated_stream(self):
         data = archive_bytes([(ROOT + "/etc/issue", tarfile.REGTYPE, "")])
         self.assertNotEqual(self.run_validator(data[:max(10, len(data) // 2)]).returncode, 0)
