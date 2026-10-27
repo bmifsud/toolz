@@ -133,6 +133,26 @@ class DeviceProcessTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(task, timeout=5)
         self.assertIsNotNone(processes[0].returncode)
 
+    async def test_stop_while_idle_exits_without_reconnect(self):
+        class FakeSocket:
+            def __init__(self, marker): self.marker = marker
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+            async def recv(self):
+                self.marker.touch()
+                await asyncio.sleep(60)
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as folder:
+            marker = Path(folder) / "STOP"
+            calls = []
+            def fake_connect(*args, **kwargs):
+                calls.append(args)
+                return FakeSocket(marker)
+            with patch.object(self.device, "STOP", marker):
+                with patch.object(self.device, "connect", side_effect=fake_connect):
+                    await asyncio.wait_for(self.device.main(), timeout=4)
+            self.assertEqual(len(calls), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
