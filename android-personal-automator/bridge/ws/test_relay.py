@@ -53,5 +53,30 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         await self.relay.handler(ws)
         self.assertEqual(ws.closed["code"], 1008)
 
+    async def test_pending_request_timeout(self):
+        class Controller:
+            def __init__(self): self.messages = []
+            async def send(self, message): self.messages.append(json.loads(message))
+        controller = Controller()
+        with patch.object(self.relay, "REQUEST_TIMEOUT", 0.001):
+            task = asyncio.create_task(self.relay.expire_request("request01", controller))
+            self.relay.pending["request01"] = (controller, task)
+            await asyncio.wait_for(task, timeout=1)
+        self.assertNotIn("request01", self.relay.pending)
+        self.assertEqual(controller.messages[0]["message"], "request timeout")
+
+    async def test_expiry_does_not_remove_reassigned_request(self):
+        class Controller:
+            def __init__(self): self.messages = []
+            async def send(self, message): self.messages.append(message)
+        old, new = Controller(), Controller()
+        with patch.object(self.relay, "REQUEST_TIMEOUT", 0.001):
+            task = asyncio.create_task(self.relay.expire_request("request02", old))
+            self.relay.pending["request02"] = (new, None)
+            await asyncio.wait_for(task, timeout=1)
+        self.assertIn("request02", self.relay.pending)
+        self.assertEqual(old.messages, [])
+        self.relay.pending.clear()
+
 if __name__ == "__main__":
     unittest.main()
