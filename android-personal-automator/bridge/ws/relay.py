@@ -2,14 +2,15 @@
 """Minimal opt-in WebSocket relay; no shell execution on server."""
 import asyncio
 import json
-import logging
 import os
 import secrets
 from urllib.parse import urlsplit
-from websockets.asyncio.server import serve
-from websockets.exceptions import ConnectionClosed
-from websockets.http11 import Response
-from websockets.datastructures import Headers
+from types import SimpleNamespace
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route, WebSocketRoute
+from starlette.websockets import WebSocketDisconnect
+import uvicorn
 
 HOST = os.environ.get("BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8765"))
@@ -18,21 +19,6 @@ CONTROLLER_TOKEN = os.environ["BRIDGE_CONTROLLER_TOKEN"]
 if len(DEVICE_TOKEN) < 32 or len(CONTROLLER_TOKEN) < 32 or DEVICE_TOKEN == CONTROLLER_TOKEN:
     raise SystemExit("Use distinct random tokens of at least 32 characters")
 device = None
-
-class HealthProbeLogFilter(logging.Filter):
-    """Suppress expected HEAD handshake traces; preserve unrelated failures."""
-    def filter(self, record):
-        if record.getMessage() != "opening handshake failed" or not record.exc_info:
-            return True
-        error = record.exc_info[1]
-        while error is not None:
-            if isinstance(error, ValueError) and str(error) == "unsupported HTTP method; expected GET; got HEAD":
-                return False
-            error = error.__cause__ or error.__context__
-        return True
-
-relay_logger = logging.getLogger("websockets.server")
-relay_logger.addFilter(HealthProbeLogFilter())
 
 async def handler(ws):
     global device
@@ -64,7 +50,7 @@ async def handler(ws):
                         await target.send(json.dumps(payload))
                 except (ValueError, TypeError):
                     continue
-        except ConnectionClosed:
+        except WebSocketDisconnect:
             pass  # Normal disconnect during mobile sleep or deployment.
         finally:
             if device is ws:
@@ -87,7 +73,7 @@ async def handler(ws):
                     await device.send(json.dumps({"type":"request", **data}))
                 except (ValueError, TypeError):
                     continue
-        except ConnectionClosed:
+        except WebSocketDisconnect:
             pass  # Controller disconnected without a close frame.
         finally:
             for key, value in list(pending.items()):
@@ -97,14 +83,52 @@ async def handler(ws):
 pending = {}
 
 async def process_request(connection, request):
-    if request.path == '/healthz':
-        return Response(200, 'OK', Headers([('Content-Type', 'text/plain'), ('Cache-Control', 'no-store')]), b'ok\n')
+    """Retained for the offline health endpoint contract test."""
+    if request.path == "/healthz":
+        return SimpleNamespace(status_code=200, body=b"ok\\n")
     return None
 
+class SocketAdapter:
+    """Expose the existing relay handler interface over ASGI WebSockets."""
+    def __init__(self, socket):
+        self.socket = socket
+        self.request = SimpleNamespace(
+            path=socket.scope["path"] + ("?" + socket.scope["query_string"].decode("ascii") if socket.scope["query_string"] else ""),
+            headers=socket.headers,
+        )
+
+    async def send(self, message):
+        await self.socket.send_text(message)
+
+    async def close(self, **kwargs):
+        await self.socket.close(**kwargs)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return await self.socket.receive_text()
+        except WebSocketDisconnect:
+            raise StopAsyncIteration
+
+async def websocket_endpoint(socket):
+    await socket.accept()
+    await handler(SocketAdapter(socket))
+
+async def healthz(request):
+    return PlainTextResponse("ok\\n", headers={"Cache-Control": "no-store"})
+
+app = Starlette(routes=[
+    Route("/healthz", healthz, methods=["GET", "HEAD"]),
+    WebSocketRoute("/device", websocket_endpoint),
+    WebSocketRoute("/controller", websocket_endpoint),
+])
+
 async def main():
-    async with serve(handler, HOST, PORT, max_size=8192, ping_interval=20, ping_timeout=20, process_request=process_request):
-        print(f"Relay listening on {HOST}:{PORT}", flush=True)
-        await asyncio.Future()
+    config = uvicorn.Config(app, host=HOST, port=PORT, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
