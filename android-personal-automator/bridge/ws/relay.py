@@ -38,6 +38,8 @@ async def handler(ws):
                     if not isinstance(payload, dict) or payload.get("type") != "result":
                         continue
                     request_id = payload.get("id")
+                    if not isinstance(request_id, str):
+                        continue
                     target = pending.pop(request_id, None)
                     if target is not None:
                         await target.send(json.dumps(payload))
