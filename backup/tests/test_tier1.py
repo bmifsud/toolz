@@ -71,7 +71,7 @@ def sandbox(tmp_path, short_gnupg_home):
 case "$1" in
  listremotes) echo gdrive: ;;
  copyto) cp "$2" "{remote}/$(basename "$3")" || exit $? ;;
- check) for file in "$2"/*.gpg; do [ -f "$file" ] || exit 8; cmp -s "$file" "{remote}/$(basename "$file")" || exit 9; done ;;
+ check) for file in "$2"/*.gpg; do\n   [ -f "$file" ] || exit 8\n   case " $* " in *" --include /$(basename "$file") "*) cmp -s "$file" "{remote}/$(basename "$file")" || exit 9 ;; esac\n done ;;
 esac
 exit 0''')
     d=os.environ.copy()
