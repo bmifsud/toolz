@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only, local diagnostic runner. No remote listener or arbitrary shell."""
 import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -10,13 +11,17 @@ COMMANDS = {
     "adb": ["adb", "devices"],
     "git-branch": ["git", "branch", "--show-current"],
     "git-status": ["git", "status", "--short"],
+    "tier1-tests": ["python", "-m", "pytest", "backup/tests/test_tier1.py", "-q", "-rx"],
 }
 def run(name):
     if name not in COMMANDS:
         raise ValueError("Unknown diagnostic")
     try:
-        p = subprocess.run(COMMANDS[name], capture_output=True, text=True,
-                           timeout=10, check=False)
+        cwd = str(Path.home() / "toolz-tier1-test") if name == "tier1-tests" else None
+        if cwd is not None and not Path(cwd, "backup/tests/test_tier1.py").is_file():
+            return {"diagnostic": name, "error": "test checkout missing", "exit_code": 2}
+        p = subprocess.run(COMMANDS[name], cwd=cwd, capture_output=True, text=True,
+                           timeout=120 if name == "tier1-tests" else 10, check=False)
         return {"diagnostic": name, "exit_code": p.returncode,
                 "stdout": p.stdout[:4096], "stderr": p.stderr[:1024]}
     except subprocess.TimeoutExpired:
