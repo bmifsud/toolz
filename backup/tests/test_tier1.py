@@ -66,12 +66,20 @@ def sandbox(tmp_path, short_gnupg_home):
     mock('curl','exit 22')
     mock('systemctl','exit 0')
     mock('omniroute','exit 0')
-    mock('rclone',f'echo "$*" >> "{calls}"\n[ "$1" = listremotes ] && echo gdrive:\nexit 0')
+    remote=tmp_path/'remote';remote.mkdir()
+    mock('rclone',f'''echo "$*" >> "{calls}"
+case "$1" in
+ listremotes) echo gdrive: ;;
+ copyto) cp "$2" "{remote}/$(basename "$3")" || exit $? ;;
+ check) test -n "$(ls "{remote}"/*.gpg 2>/dev/null)" || exit 8 ;;
+esac
+exit 0''')
     d=os.environ.copy()
     d.update(HOME=str(home),GNUPGHOME=str(gnupg),PATH=str(bins)+':'+d['PATH'],
              BACKUP_PASSPHRASE='tier1-test-only-password',
              ANDROID_OUT=str(home/'ClineOmniRouteBackups'),
              LC_ALL='C')
+    d['TEST_REMOTE']=str(remote)
     return d,home,workspace,calls,mock
 
 def run(sandbox,*args,env=None):
@@ -89,7 +97,8 @@ def test_backup_encrypts_sqlite_secrets_workspace_and_cloud(sandbox,tmp_path):
     d,home,workspace,calls,_=sandbox
     p=run(sandbox,'backup',str(workspace))
     assert p.returncode==0,p.stderr
-    a=archive(sandbox)
+    assert not list((home/'ClineOmniRouteBackups').glob('*.gpg'))
+    a=next(Path(d['TEST_REMOTE']).glob('*.gpg'))
     assert a.stat().st_size>0
     extracted=tmp_path/'extracted';extracted.mkdir()
     decrypt=subprocess.run(['gpg','--batch','--yes','--pinentry-mode','loopback',
@@ -103,7 +112,8 @@ def test_backup_encrypts_sqlite_secrets_workspace_and_cloud(sandbox,tmp_path):
     db.close()
     assert (extracted/'home'/'.cline'/'data'/'secrets.json').read_text()=='{"fake":"token"}'
     assert (extracted/'workspace'/'.memory'/'sample').read_text()=='.memory'
-    assert 'copy ' in calls.read_text()
+    assert 'copyto ' in calls.read_text()
+    assert 'check ' in calls.read_text()
     assert 'delete ' not in calls.read_text()
 
 @pytest.mark.xfail(strict=False, reason='Existing Tier-1 restore uses interactive gpg --decrypt without loopback passphrase support; preserved unchanged')
