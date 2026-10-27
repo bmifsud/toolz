@@ -1,0 +1,25 @@
+name: Hybrid Router Tests
+on:
+  pull_request:
+    paths:
+      - 'android-personal-automator/bridge/request_router.py'
+      - 'android-personal-automator/bridge/tests/test_request_router.py'
+      - '.github/workflows/hybrid-router-tests.yml'
+  push:
+    paths:
+      - 'android-personal-automator/bridge/request_router.py'
+      - 'android-personal-automator/bridge/tests/test_request_router.py'
+      - '.github/workflows/hybrid-router-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Router unit tests
+        run: python -m unittest discover -s android-personal-automator/bridge/tests -p 'test_request_router.py' -v
