@@ -4,10 +4,13 @@ on:
     paths:
       - 'android-personal-automator/bridge/request_router.py'
       - 'android-personal-automator/bridge/routing_adapter.py'
+      - 'android-personal-automator/bridge/routing_receipts.py'
       - 'android-personal-automator/bridge/tests/test_*.py'
       - '.github/workflows/hybrid-router-tests.yml'
   push:
     paths:
+      - 'android-personal-automator/bridge/routing_adapter.py'
+      - 'android-personal-automator/bridge/routing_receipts.py'
       - 'android-personal-automator/bridge/request_router.py'
       - 'android-personal-automator/bridge/tests/test_*.py'
       - '.github/workflows/hybrid-router-tests.yml'
