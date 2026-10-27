@@ -14,7 +14,7 @@ async def main():
     if not URL.startswith("wss://") or len(TOKEN) < 32:
         raise SystemExit("Set BRIDGE_CONTROLLER_TOKEN (32+ characters) and a wss:// URL")
     diagnostic = sys.argv[1] if len(sys.argv) > 1 else "git-branch"
-    if diagnostic not in ("git-branch", "tier1-tests"):
+    if diagnostic not in ("git-branch", "tier1-tests", "ssh-status"):
         raise SystemExit("Unsupported diagnostic")
     request_id = "cli-" + secrets.token_hex(12)
     print(f"[controller] connecting to {URL}/controller", flush=True)
