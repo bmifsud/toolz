@@ -102,6 +102,37 @@ class DeviceProcessTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(processes[0].returncode)
         self.assertEqual(socket.messages[0]["result"]["error"], "timeout")
 
+    async def test_cancellation_terminates_child_process_group(self):
+        class Socket:
+            async def send(self, message): raise AssertionError("unexpected result")
+        original = asyncio.create_subprocess_exec
+        processes = []
+
+        async def tracked(*args, **kwargs):
+            proc = await original(*args, **kwargs)
+            processes.append(proc)
+            return proc
+
+        # The diagnostic spawns a child that inherits stdout/stderr pipes.
+        # Cancellation must not wait indefinitely for those inherited descriptors.
+        code = ("import subprocess,sys,time; "
+                "subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)']); "
+                "time.sleep(60)")
+        with patch.dict(self.device.COMMANDS, {"git-branch": [sys.executable, "-c", code]}):
+            with patch.object(self.device, "STOP", Path("/nonexistent-bridge-stop-test")):
+                with patch.object(self.device.asyncio, "create_subprocess_exec", side_effect=tracked):
+                    task = asyncio.create_task(self.device.run_diagnostic(Socket(), "process05", "git-branch"))
+                    for _ in range(100):
+                        if processes:
+                            break
+                        await asyncio.sleep(0.01)
+                    self.assertTrue(processes)
+                    await asyncio.sleep(0.1)
+                    task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await asyncio.wait_for(task, timeout=5)
+        self.assertIsNotNone(processes[0].returncode)
+
 
 if __name__ == "__main__":
     unittest.main()
