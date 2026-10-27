@@ -6,6 +6,7 @@ import os
 import secrets
 from urllib.parse import urlsplit
 from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
 from websockets.http11 import Response
 from websockets.datastructures import Headers
 
@@ -47,6 +48,8 @@ async def handler(ws):
                         await target.send(json.dumps(payload))
                 except (ValueError, TypeError):
                     continue
+        except ConnectionClosed:
+            pass  # Normal disconnect during mobile sleep or deployment.
         finally:
             if device is ws:
                 device = None
@@ -68,6 +71,8 @@ async def handler(ws):
                     await device.send(json.dumps({"type":"request", **data}))
                 except (ValueError, TypeError):
                     continue
+        except ConnectionClosed:
+            pass  # Controller disconnected without a close frame.
         finally:
             for key, value in list(pending.items()):
                 if value is ws:
