@@ -112,9 +112,28 @@ WORKSPACE_DIR="${2:-$(pwd)}"
 
 echo "[1/5] Performing safe hot SQLite backup of OmniRoute DB, .env, and JSON combos..."
 mkdir -p "$WORK_DIR/omniroute" "$WORK_DIR/systemd"
-if [ -f ~/.omniroute/storage.sqlite ]; then
-  sqlite3 ~/.omniroute/storage.sqlite ".backup '$WORK_DIR/omniroute/storage.sqlite'"
+# Prefer the live Debian database when present; never silently omit a known DB.
+# The snapshot is created in the private Termux work directory, not in rootfs.
+DEBIAN_DB="${OMNIROUTE_DEBIAN_DB:-$HOME/.andronix/distros/debian/rootfs/home/b/.omniroute/storage.sqlite}"
+TERMUX_DB="$HOME/.omniroute/storage.sqlite"
+if [ -f "$DEBIAN_DB" ]; then
+  SOURCE_DB="$DEBIAN_DB"
+elif [ -f "$TERMUX_DB" ]; then
+  SOURCE_DB="$TERMUX_DB"
+else
+  echo "Error: OmniRoute SQLite database not found; refusing incomplete Tier-1 backup" >&2
+  exit 1
 fi
+if [ ! -r "$SOURCE_DB" ]; then
+  echo "Error: OmniRoute SQLite database unreadable" >&2
+  exit 1
+fi
+sqlite3 "$SOURCE_DB" ".timeout 10000" ".backup '$WORK_DIR/omniroute/storage.sqlite'"
+if [ "$(sqlite3 "$WORK_DIR/omniroute/storage.sqlite" 'PRAGMA integrity_check;')" != "ok" ]; then
+  echo "Error: OmniRoute SQLite snapshot integrity check failed" >&2
+  exit 1
+fi
+echo "Verified SQLite snapshot from $SOURCE_DB"
 [ -f ~/.omniroute/.env ] && cp -a ~/.omniroute/.env "$WORK_DIR/omniroute/.env"
 [ -f ~/.config/systemd/user/omniroute.service ] && cp -a ~/.config/systemd/user/omniroute.service "$WORK_DIR/systemd/omniroute.service"
 if curl -fsS http://localhost:20128/api/combos >/dev/null 2>&1; then
