@@ -47,6 +47,21 @@ class WorkerTests(unittest.TestCase):
                 self.assertEqual(run.call_count, 1)
                 self.assertEqual(gh.call_count, 2)
 
+    def test_receipt_contains_timing_and_command(self):
+        with tempfile.TemporaryDirectory() as folder:
+            calls = []
+            def fake_gh(*args):
+                calls.append(args)
+                return json.dumps([comment()]) if len(calls) == 1 else 'ok'
+            with patch.object(worker, 'gh', side_effect=fake_gh), patch.object(worker, 'run', return_value={'exit_code': 0, 'stdout': 'main\\n', 'stderr': ''}):
+                worker.poll_once(Path(folder), NOW)
+            posted = json.loads(calls[1][-1].split(worker.RESULT, 1)[1])
+            self.assertEqual(posted['receipt']['command'], 'git branch --show-current')
+            self.assertGreaterEqual(posted['receipt']['duration_ms'], 0)
+            self.assertIn('started_at', posted['receipt'])
+            self.assertIn('finished_at', posted['receipt'])
+            self.assertEqual(posted['result']['exit_code'], 0)
+
     def test_replay_after_restart(self):
         with tempfile.TemporaryDirectory() as folder:
             with patch.object(worker, "gh", side_effect=[
