@@ -21,6 +21,17 @@ if len(DEVICE_TOKEN) < 32 or len(CONTROLLER_TOKEN) < 32 or DEVICE_TOKEN == CONTR
 device = None
 MAX_PENDING = 16
 MAX_MESSAGE = 8192
+REQUEST_TIMEOUT = 30
+
+async def expire_request(request_id, controller):
+    try:
+        await asyncio.sleep(REQUEST_TIMEOUT)
+        entry = pending.get(request_id)
+        if entry is not None and entry[0] is controller:
+            pending.pop(request_id, None)
+            await controller.send(json.dumps({"type": "error", "id": request_id, "message": "request timeout"}))
+    except (OSError, RuntimeError, ConnectionError):
+        pass
 
 async def handler(ws):
     global device
@@ -50,8 +61,10 @@ async def handler(ws):
                     request_id = payload.get("id")
                     if not isinstance(request_id, str):
                         continue
-                    target = pending.pop(request_id, None)
-                    if target is not None:
+                    entry = pending.pop(request_id, None)
+                    if entry is not None:
+                        target, timer = entry
+                        timer.cancel()
                         await target.send(json.dumps(payload))
                 except (ValueError, TypeError):
                     continue
@@ -60,6 +73,13 @@ async def handler(ws):
         finally:
             if device is ws:
                 device = None
+                for key, (target, timer) in list(pending.items()):
+                    pending.pop(key, None)
+                    timer.cancel()
+                    try:
+                        await target.send(json.dumps({"type": "error", "id": key, "message": "device disconnected"}))
+                    except (OSError, RuntimeError, ConnectionError):
+                        pass
     else:
         try:
             async for message in ws:
@@ -78,11 +98,13 @@ async def handler(ws):
                     if data["id"] in pending or len(pending) >= MAX_PENDING:
                         await ws.send(json.dumps({"type":"error","id":data["id"],"message":"duplicate or busy"}))
                         continue
-                    pending[data["id"]] = ws
+                    pending[data["id"]] = (ws, asyncio.create_task(expire_request(data["id"], ws)))
                     try:
                         await asyncio.wait_for(device.send(json.dumps({"type":"request", **data})), timeout=5)
                     except (OSError, RuntimeError, ConnectionError, asyncio.TimeoutError):
-                        pending.pop(data["id"], None)
+                        entry = pending.pop(data["id"], None)
+                        if entry is not None:
+                            entry[1].cancel()
                         await ws.send(json.dumps({"type":"error","id":data["id"],"message":"device unavailable"}))
                 except (ValueError, TypeError):
                     continue
@@ -90,8 +112,9 @@ async def handler(ws):
             pass  # Controller disconnected without a close frame.
         finally:
             for key, value in list(pending.items()):
-                if value is ws:
+                if value[0] is ws:
                     pending.pop(key, None)
+                    value[1].cancel()
 
 pending = {}
 
