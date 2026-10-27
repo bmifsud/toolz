@@ -155,6 +155,13 @@ def test_cloud_copy_failure_is_reported(sandbox):
     assert p.returncode!=0
     assert archive(sandbox).exists()
 
+def test_cloud_verification_failure_keeps_encrypted_copy(sandbox):
+    sandbox[4]('rclone', '[ "$1" = listremotes ] && { echo gdrive:; exit 0; }\\n[ "$1" = check ] && exit 9\\nexit 0')
+    p=run(sandbox,'backup',str(sandbox[2]))
+    assert p.returncode!=0
+    assert archive(sandbox).exists()
+
+
 def test_restore_gdrive_no_remote_archives(sandbox):
     sandbox[4]('rclone','[ "$1" = lsf ] && exit 0\nexit 0')
     assert run(sandbox,'--restore-gdrive',str(sandbox[2])).returncode!=0
