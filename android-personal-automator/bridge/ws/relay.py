@@ -6,6 +6,8 @@ import os
 import secrets
 from urllib.parse import urlsplit
 from websockets.asyncio.server import serve
+from websockets.http11 import Response
+from websockets.datastructures import Headers
 
 HOST = os.environ.get("BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8765"))
@@ -72,8 +74,14 @@ async def handler(ws):
                     pending.pop(key, None)
 
 pending = {}
+
+async def process_request(connection, request):
+    if request.path == '/healthz':
+        return Response(200, 'OK', Headers([('Content-Type', 'text/plain'), ('Cache-Control', 'no-store')]), b'ok\n')
+    return None
+
 async def main():
-    async with serve(handler, HOST, PORT, max_size=8192, ping_interval=20, ping_timeout=20):
+    async with serve(handler, HOST, PORT, max_size=8192, ping_interval=20, ping_timeout=20, process_request=process_request):
         print(f"Relay listening on {HOST}:{PORT}", flush=True)
         await asyncio.Future()
 
