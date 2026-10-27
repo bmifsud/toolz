@@ -164,5 +164,31 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ws.sent[0]["message"], "device offline")
         self.assertEqual(self.relay.pending, {})
 
+    async def test_controller_duplicate_pending_request_is_rejected(self):
+        class FakeSocket:
+            request = SimpleNamespace(path="/controller", headers={"Authorization": "Bearer controller-" + "b" * 40})
+            def __init__(self): self.sent = []
+            async def send(self, message): self.sent.append(json.loads(message))
+            def __aiter__(self): return self
+            async def __anext__(self):
+                if getattr(self, "read", False): raise StopAsyncIteration
+                self.read = True
+                return json.dumps({"id": "request07", "diagnostic": "git-branch"})
+        class Device:
+            async def send(self, message): pass
+        ws = FakeSocket()
+        other = object()
+        timer = asyncio.create_task(asyncio.sleep(60))
+        self.relay.pending["request07"] = (other, timer)
+        self.relay.device = Device()
+        try:
+            await self.relay.handler(ws)
+            self.assertEqual(ws.sent[0]["message"], "duplicate or busy")
+            self.assertIs(self.relay.pending["request07"][0], other)
+        finally:
+            timer.cancel()
+            self.relay.pending.clear()
+            self.relay.device = None
+
 if __name__ == "__main__":
     unittest.main()
