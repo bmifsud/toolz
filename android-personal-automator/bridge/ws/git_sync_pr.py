@@ -39,7 +39,7 @@ def main():
         if git("rev-parse", "HEAD").stdout.strip() != git("rev-parse", "refs/remotes/origin/" + BRANCH).stdout.strip():
             print("DENIED: local PR branch differs from origin; reconcile manually")
             return 3
-        git("merge", "--ff-only", "origin/main") if git("merge-base", "--is-ancestor", "HEAD", "origin/main").returncode == 0 else git("merge", "--no-edit", "origin/main")
+        git("merge", "--no-edit", "origin/main")
         tests = subprocess.run([sys.executable, "-m", "unittest", "discover",
             "-s", "android-personal-automator/bridge/ws", "-p", "test_*.py"],
             cwd=ROOT, capture_output=True, text=True, timeout=180)
