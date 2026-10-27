@@ -71,7 +71,7 @@ def sandbox(tmp_path, short_gnupg_home):
 case "$1" in
  listremotes) echo gdrive: ;;
  copyto) cp "$2" "{remote}/$(basename "$3")" || exit $? ;;
- check) test -n "$(ls "{remote}"/*.gpg 2>/dev/null)" || exit 8 ;;
+ check) for file in "$2"/*.gpg; do [ -f "$file" ] || exit 8; cmp -s "$file" "{remote}/$(basename "$file")" || exit 9; done ;;
 esac
 exit 0''')
     d=os.environ.copy()
@@ -160,6 +160,26 @@ def test_cloud_verification_failure_keeps_encrypted_copy(sandbox):
     p=run(sandbox,'backup',str(sandbox[2]))
     assert p.returncode!=0
     assert archive(sandbox).exists()
+
+
+
+def test_corrupted_remote_archive_keeps_local_copy(sandbox):
+    d,home,workspace,_,mock=sandbox
+    remote=Path(d['TEST_REMOTE'])
+    mock('rclone', f'''case "$1" in
+ listremotes) echo gdrive: ;;
+ copyto) printf 'corrupted-remote-content' > "{remote}/$(basename "$3")" ;;
+ check) for file in "$2"/*.gpg; do
+   [ -f "$file" ] || exit 8
+   cmp -s "$file" "{remote}/$(basename "$file")" || exit 9
+ done ;;
+esac
+exit 0''')
+    result=run(sandbox,'backup',str(workspace))
+    assert result.returncode != 0
+    assert 'remote verification failed' in result.stderr
+    assert archive(sandbox).exists()
+    assert list(remote.glob('*.gpg'))
 
 
 def test_restore_gdrive_no_remote_archives(sandbox):
