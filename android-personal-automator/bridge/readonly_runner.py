@@ -9,6 +9,7 @@ COMMANDS = {
     "identity": ["id"],
     "android": ["getprop", "ro.build.version.release"],
     "adb": ["adb", "devices"],
+    "ssh-status": [sys.executable, "-c", "import socket; s=socket.socket(); s.settimeout(1); rc=s.connect_ex(('127.0.0.1',8022)); s.close(); print('SSH port 8022: listening' if rc == 0 else 'SSH port 8022: not reachable'); raise SystemExit(0 if rc == 0 else 1)"],
     "git-branch": ["git", "branch", "--show-current"],
     "git-status": ["git", "status", "--short"],
     "tier1-tests": ["python", "-m", "pytest", "backup/tests/test_tier1.py", "-q", "-rx"],
