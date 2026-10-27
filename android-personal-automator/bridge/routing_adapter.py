@@ -12,6 +12,7 @@ except ImportError:
     from request_router import Decision
 
 TERMUX_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests"})
+DEBIAN_DIAGNOSTICS = frozenset({"debian-identity", "debian-disk"})
 
 @dataclass(frozen=True)
 class ExecutionPlan:
@@ -32,9 +33,11 @@ def plan_execution(decision: Decision, diagnostic: Optional[str] = None,
     if decision.destination == "github":
         return ExecutionPlan("github", "connector_required", None,
                              "scoped GitHub connector must authorize and execute separately")
-    if decision.destination == "termux":
-        if diagnostic not in TERMUX_DIAGNOSTICS:
-            return ExecutionPlan("termux", "denied", None, "unknown or missing allowlisted diagnostic")
+    if decision.destination in ("termux", "debian"):
+        target = decision.destination
+        allowlist = TERMUX_DIAGNOSTICS if target == "termux" else DEBIAN_DIAGNOSTICS
+        if diagnostic not in allowlist:
+            return ExecutionPlan(target, "denied", None, "unknown or missing allowlisted diagnostic")
         if not bridge_authenticated:
             return ExecutionPlan("termux", "bridge_disconnected", None, "authenticated device bridge unavailable")
         if decision.permission == "approval_required":
