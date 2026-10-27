@@ -113,3 +113,9 @@ Only run this after the device listener reports `Connected; waiting for authoriz
 - [GitHub queue issue #24](https://github.com/bmifsud/toolz/issues/24)
 - [Verified tablet result](https://github.com/bmifsud/toolz/issues/24#issuecomment-6444748104)
 - [Render service dashboard](https://dashboard.render.com/web/srv-dbgbgvo473hc73b11nug)
+
+## Structured orchestration adapter (experimental)
+
+`orchestration_adapter.py` provides an explicit, local, one-shot JSON interface for approved read-only diagnostics. It is **not** a ChatGPT tool or an authenticated remote control channel from this chat. Run on a trusted machine with the private controller token set, e.g. `python orchestration_adapter.py git-branch`. It emits a redacted receipt plus diagnostic result on stdout; handle stdout as sensitive if diagnostics contain private paths. Receipt hashes are integrity summaries, not device signatures. Do not expose this script as an unauthenticated public HTTP endpoint.
+
+Test locally with `python -m unittest discover -s android-personal-automator/bridge/ws -p 'test_*.py'`. Before any ChatGPT-initiated invocation, implement a dedicated authenticated connector/action with server-side token custody, user approval and request ownership, bounded concurrency and pending-request expiry, audit logging, and replay protections. No write commands are authorized.
