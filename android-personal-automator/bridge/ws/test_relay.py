@@ -94,7 +94,7 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.relay.pending["request03"] = (controller, timer)
         await self.relay.handler(FakeSocket())
         self.assertNotIn("request03", self.relay.pending)
-        self.assertTrue(timer.cancelled())
+        self.assertTrue(timer.cancelling())
         self.assertEqual(controller.messages[0]["message"], "device disconnected")
 
     async def test_controller_disconnect_cancels_its_pending_requests(self):
@@ -107,7 +107,7 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.relay.pending["request04"] = (ws, timer)
         await self.relay.handler(ws)
         self.assertNotIn("request04", self.relay.pending)
-        self.assertTrue(timer.cancelled())
+        self.assertTrue(timer.cancelling())
 
 if __name__ == "__main__":
     unittest.main()
