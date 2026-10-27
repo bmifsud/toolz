@@ -7,6 +7,7 @@ import ssl
 import sys
 from pathlib import Path
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from readonly_runner import run
 
@@ -26,28 +27,38 @@ async def run_diagnostic(ws, request_id, diagnostic):
 
 async def main():
     seen = set()
-    active = set()
     while not STOP.exists():
         try:
             async with connect(URL + "/device", additional_headers={"Authorization": "Bearer " + TOKEN}, max_size=8192, ping_interval=20) as ws:
                 print("[bridge] Connected; waiting for authorized requests", flush=True)
-                async for raw in ws:
-                    if STOP.exists():
-                        break
-                    try:
-                        data = json.loads(raw)
-                        if data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests"):
+                active = set()
+                try:
+                    while not STOP.exists():
+                        try:
+                            raw = await asyncio.wait_for(ws.recv(), timeout=1)
+                        except asyncio.TimeoutError:
                             continue
-                        request_id = data.get("id")
-                        if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
+                        except ConnectionClosed:
+                            break
+                        try:
+                            data = json.loads(raw)
+                            if not isinstance(data, dict) or data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests"):
+                                continue
+                            request_id = data.get("id")
+                            if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
+                                continue
+                            seen.add(request_id)
+                            print(f"[bridge] REQUEST {request_id}: {data['diagnostic']}", flush=True)
+                            task = asyncio.create_task(run_diagnostic(ws, request_id, data["diagnostic"]))
+                            active.add(task)
+                            task.add_done_callback(active.discard)
+                        except (ValueError, TypeError, AttributeError):
                             continue
-                        seen.add(request_id)
-                        print(f"[bridge] REQUEST {request_id}: {data['diagnostic']}", flush=True)
-                        task = asyncio.create_task(run_diagnostic(ws, request_id, data["diagnostic"]))
-                        active.add(task)
-                        task.add_done_callback(active.discard)
-                    except (ValueError, TypeError, AttributeError):
-                        continue
+                finally:
+                    for task in active:
+                        task.cancel()
+                    if active:
+                        await asyncio.gather(*active, return_exceptions=True)
         except (OSError, TimeoutError) as exc:
             print(f"[bridge] Disconnected: {type(exc).__name__}; retrying", flush=True)
         if STOP.exists():
