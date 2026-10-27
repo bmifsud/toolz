@@ -36,5 +36,25 @@ class WorkerTests(unittest.TestCase):
                 worker.poll_once(Path(folder), NOW)
                 self.assertEqual(run.call_count, 1)
                 self.assertEqual(gh.call_count, 3)
+    def test_duplicate_request_id_different_comment(self):
+        second = comment()
+        second["id"] = 102
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(worker, "gh", side_effect=[
+                json.dumps([comment(), second]), "ok"
+            ]) as gh, patch.object(worker, "run", return_value={"exit_code": 0}) as run:
+                worker.poll_once(Path(folder), NOW)
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(gh.call_count, 2)
+
+    def test_replay_after_restart(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(worker, "gh", side_effect=[
+                json.dumps([comment()]), "ok", json.dumps([comment()])
+            ]), patch.object(worker, "run", return_value={"exit_code": 0}) as run:
+                worker.poll_once(Path(folder), NOW)
+                worker.poll_once(Path(folder), NOW)
+                self.assertEqual(run.call_count, 1)
+
 if __name__ == "__main__":
     unittest.main()
