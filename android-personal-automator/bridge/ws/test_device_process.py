@@ -153,6 +153,31 @@ class DeviceProcessTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(self.device.main(), timeout=4)
             self.assertEqual(len(calls), 1)
 
+    async def test_stop_during_active_request_cancels_worker(self):
+        from tempfile import TemporaryDirectory
+        from unittest.mock import AsyncMock
+        class FakeSocket:
+            def __init__(self, marker): self.marker = marker; self.messages = []; self.reads = 0
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+            async def recv(self):
+                self.reads += 1
+                if self.reads == 1:
+                    return json.dumps({"type": "request", "id": "active123", "diagnostic": "git-branch"})
+                self.marker.touch()
+                await asyncio.sleep(60)
+            async def send(self, message): self.messages.append(json.loads(message))
+        with TemporaryDirectory() as folder:
+            marker = Path(folder) / "STOP"
+            socket = FakeSocket(marker)
+            with patch.object(self.device, "STOP", marker):
+                with patch.object(self.device, "connect", return_value=socket):
+                    with patch.object(self.device, "run_diagnostic", new_callable=AsyncMock) as worker:
+                        worker.side_effect = lambda *args: asyncio.sleep(60)
+                        await asyncio.wait_for(self.device.main(), timeout=4)
+                        self.assertEqual(worker.await_count, 1)
+            self.assertEqual(socket.messages, [])
+
 
 if __name__ == "__main__":
     unittest.main()
