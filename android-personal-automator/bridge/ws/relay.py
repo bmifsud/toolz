@@ -90,7 +90,7 @@ async def handler(ws):
                     data = json.loads(message)
                     if not isinstance(data, dict) or set(data) != {"id", "diagnostic"}:
                         continue
-                    if data["diagnostic"] not in ("git-branch", "tier1-tests") or not isinstance(data["id"], str) or not (8 <= len(data["id"]) <= 64) or not data["id"].replace("-", "").replace("_", "").isalnum():
+                    if data["diagnostic"] not in ("git-branch", "tier1-tests", "ssh-status") or not isinstance(data["id"], str) or not (8 <= len(data["id"]) <= 64) or not data["id"].replace("-", "").replace("_", "").isalnum():
                         continue
                     if device is None:
                         await ws.send(json.dumps({"type":"error","id":data["id"],"message":"device offline"}))
