@@ -6,6 +6,7 @@ import os
 import secrets
 import sys
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 
 URL = os.environ.get("BRIDGE_WS_URL", "wss://toolz-termux-ws-relay.onrender.com").rstrip("/")
 TOKEN = os.environ.get("BRIDGE_CONTROLLER_TOKEN", "")
@@ -13,6 +14,8 @@ TOKEN = os.environ.get("BRIDGE_CONTROLLER_TOKEN", "")
 async def main():
     if not URL.startswith("wss://") or len(TOKEN) < 32:
         raise SystemExit("Set BRIDGE_CONTROLLER_TOKEN (32+ characters) and a wss:// URL")
+    if any(ord(ch) < 33 or ord(ch) > 126 for ch in TOKEN):
+        raise SystemExit("[controller] invalid token characters; use a single-line printable ASCII token")
     diagnostic = sys.argv[1] if len(sys.argv) > 1 else "git-branch"
     if diagnostic not in ("git-branch", "tier1-tests", "ssh-status"):
         raise SystemExit("Unsupported diagnostic")
@@ -39,5 +42,6 @@ async def main():
 if __name__ == "__main__":
     try:
         sys.exit(asyncio.run(main()))
-    except (OSError, TimeoutError) as exc:
-        raise SystemExit(f"[controller] connection or response failed: {type(exc).__name__}") from exc
+    except (OSError, TimeoutError, ConnectionClosed, ValueError) as exc:
+        print(f"[controller] connection or response failed: {type(exc).__name__} (credentials redacted)", file=sys.stderr)
+        sys.exit(2)
