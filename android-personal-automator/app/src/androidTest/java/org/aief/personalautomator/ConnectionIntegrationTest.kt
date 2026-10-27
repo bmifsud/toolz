@@ -55,13 +55,15 @@ class ConnectionIntegrationTest {
     @Test fun bridgeDestinationChangeCannotReuseToken() {
         val vault = ConnectionVault(context)
         val bridgeToken = "x".repeat(48)
+        // Another activity/test may persist local settings independently of this bridge slot.
+        val localBefore = vault.settings(true)
         vault.save(false, "https://one.example/proposal", "auto", "task", bridgeToken)
         vault.save(false, "https://two.example/proposal", "auto", "task", "")
         assertFalse(vault.settings(false)!!.hasToken)
         assertFalse(vault.selectedLocal())
         try { vault.useToken(false, "https://two.example/proposal") { true }; fail("Reused destination-bound token") }
         catch (_: IllegalStateException) { }
-        assertNull(vault.settings(true))
+        assertEquals(localBefore, vault.settings(true))
     }
 
     @Test fun tamperedCiphertextFailsClosed() {
