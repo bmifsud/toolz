@@ -88,15 +88,15 @@ Only run this after the device listener reports `Connected; waiting for authoriz
 | Check | Evidence / state |
 | --- | --- |
 | GitHub issue worker executes `git-branch` | **PASS**, issue #24 result `live-display-20261027-1432`, exit 0 |
-| Previous bridge CI | **PASS** on earlier commits; latest commit must be rechecked |
+| Bridge CI at `b7a61f0` | **PASS** — Termux bridge unit tests, Test Suite, Android workflows |
 | Render service creation | **PASS**, separate service ID `srv-dbgbgvo473hc73b11nug` |
 | Render dependency build | **PASS**, `websockets-16.1.1` installed in build logs |
 | First Render deployment | **FAIL**, missing `BRIDGE_DEVICE_TOKEN` |
 | Render credentials / deployment | **PASS** deployment `dep-dbgbprh42hec73e5vlrg` Live; endpoint check pending |
-| WebSocket health and authentication unit tests | **PASS** GitHub Actions on commit `9ba544e`; end-to-end routing pending |
-| Device connected over WSS | **PENDING** |
-| Controller-to-device-to-controller live roundtrip | **PENDING** |
-| STOP, reconnect, replay, offline behavior | **PENDING** |
+| WebSocket relay integration tests | **PASS** on `b7a61f0` — authenticated ASGI request/result, reconnect, offline and disconnect handling |
+| Current updated device connected over WSS | **PENDING** — prior user-operated controller result is historical evidence only |
+| Updated device live roundtrip | **PENDING** — requires tablet session |
+| STOP, reconnect, offline behavior | **PASS in CI simulation; PENDING on physical tablet** |
 
 ## Troubleshooting and rollback
 
@@ -113,3 +113,16 @@ Only run this after the device listener reports `Connected; waiting for authoriz
 - [GitHub queue issue #24](https://github.com/bmifsud/toolz/issues/24)
 - [Verified tablet result](https://github.com/bmifsud/toolz/issues/24#issuecomment-6444748104)
 - [Render service dashboard](https://dashboard.render.com/web/srv-dbgbgvo473hc73b11nug)
+
+## Physical-device acceptance gate for PR #23
+
+Run only with explicit local approval and private device/controller credentials. Do not modify the existing Tier-1 checkout or enable the auto-update supervisor. Fetch the reviewed PR branch as described above, inspect the diff, and copy the current `device.py`, `readonly_runner.py`, and `controller.py` to their documented locations. Record the exact commit hash with `git rev-parse FETCH_HEAD` and retain redacted logs.
+
+1. Start the device listener in one Termux session; verify its connected message. In another trusted terminal, run the controller and confirm a matching `git-branch` result.
+2. For idle STOP, create `~/.local/state/toolz-termux-bridge/STOP` while the device is waiting. Verify it exits within a few seconds and does not reconnect.
+3. Remove STOP, restart the listener, and confirm a second authorized request succeeds.
+4. For active STOP, start `tier1-tests` from the controller only when the test checkout is present; create STOP while it is executing. Confirm the listener exits, no result is sent after STOP, and no diagnostic process group remains. Use `pgrep -af 'pytest.*test_tier1.py'` to check for survivors. A test finishing before STOP is inconclusive; repeat if necessary.
+5. Verify invalid device/controller tokens are rejected without publishing token values, and disconnecting the device reports an error to the controller. Verify only the two allowlisted diagnostics can be requested.
+6. Remove STOP only when ready to reconnect. Terminate both listener and controller when finished; unset exported tokens in each shell.
+
+**Pass criteria:** Attach redacted timestamps, commit SHA, test outputs, and process-survivor checks to issue #27. Do not mark the physical gate passed based solely on CI, Render health, or the historical controller result. Android GitHub Actions passing does not mean the WebSocket bridge was exercised in an emulator.
