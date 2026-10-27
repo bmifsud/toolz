@@ -49,13 +49,13 @@ async def run_diagnostic(ws, request_id, diagnostic):
             except ProcessLookupError:
                 pass
             try:
-                await asyncio.wait_for(process.wait(), timeout=2)
+                await asyncio.wait_for(process.communicate(), timeout=2)
             except asyncio.TimeoutError:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-                await process.wait()
+                await process.communicate()
 
 async def main():
     seen = set()
