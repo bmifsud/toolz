@@ -3,7 +3,6 @@
 import asyncio
 import json
 import os
-import ssl
 import signal
 import sys
 from pathlib import Path
@@ -41,10 +40,6 @@ async def run_diagnostic(ws, request_id, diagnostic):
                       "stderr": stderr.decode("utf-8", errors="replace")[:1024]}
         except asyncio.TimeoutError:
             result = {"diagnostic": diagnostic, "error": "timeout"}
-            raise
-        if not STOP.exists():
-            await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
-    except asyncio.TimeoutError:
         if not STOP.exists():
             await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
     finally:
