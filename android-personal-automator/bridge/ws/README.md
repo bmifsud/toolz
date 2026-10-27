@@ -1,6 +1,6 @@
 # Termux command bridge — deployment and verification
 
-> **Status (2026-10-27):** Experimental. GitHub issue polling has executed `git-branch` on the tablet successfully. WebSocket transport is committed but **not yet connected to the tablet**. A separate Render service exists, but its first deployment **failed** because `BRIDGE_DEVICE_TOKEN` was absent. No production-ready remote shell exists.
+> **Status (2026-10-27):** Experimental. GitHub issue polling has executed `git-branch` on the tablet. The separate Render WebSocket relay is Live on commit `9ba544e`; its `/healthz` endpoint has CI tests but has not been independently checked over the public URL. Device WebSocket connection and controller-to-device roundtrip remain unverified. No production-ready remote shell exists.
 
 ## Components and boundaries
 
@@ -10,10 +10,11 @@
 | GitHub issue worker | `../github_issue_worker.py` | Existing pull-based transport; queue issue #24 |
 | WebSocket relay | `relay.py` | Routes authenticated request/result JSON; never executes shell |
 | Termux device listener | `device.py` | Outbound WSS, visible stdout, reconnect, STOP file |
+| Explicit controller | `controller.py` | Authenticated one-shot read-only `git-branch` request; not connected to ChatGPT |
 | Existing Render bridge | `android-personal-automator-bridge` | Separate legacy service; **do not modify** |
 | New Render service | `toolz-termux-ws-relay` | Isolated experimental relay |
 
-The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard https://dashboard.render.com/web/srv-dbgbgvo473hc73b11nug. It uses Frankfurt, free plan, feature branch `feat/termux-readonly-bridge-20261027`, with auto-deploy disabled. This endpoint is **not healthy until credentials are installed and deployment succeeds**.
+The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard https://dashboard.render.com/web/srv-dbgbgvo473hc73b11nug. It uses Frankfurt, free plan, feature branch `feat/termux-readonly-bridge-20261027`, with auto-deploy disabled. The latest checked Render deployment is **Live**; actual authenticated connectivity still needs device verification.
 
 ## Security model
 
@@ -68,6 +69,20 @@ python -u "$HOME/toolz-ws-bridge/device.py"
 
 The `read` prompt requires interactive Bash; `Ctrl+C` stops the client. Never post tokens to GitHub. Use an approved authenticated controller to submit `{"id":"unique-id-123","diagnostic":"git-branch"}` to `/controller`. Expected response type is `result`, with the same ID and runner result.
 
+## One-shot controller test (separate authorized terminal)
+
+Install the same `requirements.txt` and copy `controller.py` to a trusted host or a separate Termux session. Use the distinct private **controller** token (not the device token):
+
+```bash
+export BRIDGE_WS_URL='wss://toolz-termux-ws-relay.onrender.com'
+read -r -s -p 'Controller token: ' BRIDGE_CONTROLLER_TOKEN; echo
+export BRIDGE_CONTROLLER_TOKEN
+python -u controller.py
+unset BRIDGE_CONTROLLER_TOKEN
+```
+
+Only run this after the device listener reports `Connected; waiting for authorized requests`. The controller prints the submitted diagnostic and the response; the device listener prints the actual command and output. The controller is an explicit CLI, **not** a ChatGPT connector. Never paste tokens into chat, logs, or issues.
+
 ## Verification checklist
 
 | Check | Evidence / state |
@@ -77,8 +92,8 @@ The `read` prompt requires interactive Bash; `Ctrl+C` stops the client. Never po
 | Render service creation | **PASS**, separate service ID `srv-dbgbgvo473hc73b11nug` |
 | Render dependency build | **PASS**, `websockets-16.1.1` installed in build logs |
 | First Render deployment | **FAIL**, missing `BRIDGE_DEVICE_TOKEN` |
-| Render credentials / healthy deployment | **PENDING** |
-| WebSocket auth rejection / routing integration tests | **PENDING** |
+| Render credentials / deployment | **PASS** deployment `dep-dbgbprh42hec73e5vlrg` Live; endpoint check pending |
+| WebSocket health and authentication unit tests | **PASS** GitHub Actions on commit `9ba544e`; end-to-end routing pending |
 | Device connected over WSS | **PENDING** |
 | Controller-to-device-to-controller live roundtrip | **PENDING** |
 | STOP, reconnect, replay, offline behavior | **PENDING** |
