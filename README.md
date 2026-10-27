@@ -52,3 +52,16 @@ To run backup tests specifically using pytest:
 ```bash
 pytest backup/tests/
 ```
+
+### 4. Termux command bridge (experimental)
+
+The existing GitHub issue worker provides a **read-only, polling-based** connection to Termux. An experimental **WebSocket push transport** has been added to avoid issue polling, but it is **not yet validated on the tablet**.
+
+- **Complete setup, security, validation, and rollback guide:** [WebSocket bridge README](android-personal-automator/bridge/ws/README.md)
+- **Source:** [relay](android-personal-automator/bridge/ws/relay.py), [Termux listener](android-personal-automator/bridge/ws/device.py), [local diagnostic runner](android-personal-automator/bridge/readonly_runner.py)
+- **GitHub PR:** [#23](https://github.com/bmifsud/toolz/pull/23)
+- **Render:** A separate `toolz-termux-ws-relay` service was created. Its first deployment failed because credentials were not configured. Do not mistake service creation for a working endpoint.
+- **Safety:** Only the `git-branch` diagnostic is exposed via WebSocket; no arbitrary shell commands or backup mutations. The current ChatGPT connector cannot directly submit WebSocket messages.
+- **Existing services:** The original Android bridge and Tier-1/Tier-2 backup automation are separate and should remain unchanged.
+
+**Verified:** The GitHub issue worker executed `git branch --show-current` on the tablet and returned exit code 0. **Not yet verified:** WSS authentication, relay health, tablet connection, or live round-trip.
