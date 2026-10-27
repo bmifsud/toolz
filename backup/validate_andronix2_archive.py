@@ -17,8 +17,43 @@ def reject(message):
     raise SystemExit("Unsafe archive: " + message)
 
 
+def validate_identity(name, entries, parents):
+    """Resolve POSIX links entirely in the archived rootfs namespace."""
+    def walk(parts, resolved, active):
+        for index, part in enumerate(parts):
+            if part in ("", "."):
+                continue
+            if part == "..":
+                if not resolved:
+                    reject("escaping identity symlink " + repr(name))
+                resolved.pop()
+                continue
+            candidate = ROOT + "/" + "/".join([*resolved, part])
+            entry = entries.get(candidate)
+            if entry is None and candidate not in parents:
+                reject("missing identity target " + repr(candidate))
+            if entry is not None and entry.issym():
+                if candidate in active or len(active) >= 128:
+                    reject("cyclic or excessive identity symlinks " + repr(name))
+                target = entry.linkname
+                resolved = walk(target.split("/"), [] if target.startswith("/") else resolved[:], active | {candidate})
+            else:
+                resolved.append(part)
+            dest = ROOT + ("/" + "/".join(resolved) if resolved else "")
+            terminal = entries.get(dest)
+            if index < len(parts) - 1 and terminal is not None and not terminal.isdir():
+                reject("non-directory identity ancestor " + repr(dest))
+        return resolved
+
+    resolved = walk(name[len(ROOT) + 1:].split("/"), [], set())
+    target = entries.get(ROOT + "/" + "/".join(resolved))
+    if target is None or not target.isfile() or target.size <= 0:
+        reject("missing or empty Debian identity file " + repr(name))
+
+
 def validate(stream):
     seen = set()
+    entries = {}
     symlinks = set()
     parents = set()
     found_root = found_launcher = False
@@ -35,8 +70,11 @@ def validate(stream):
             if name in seen:
                 reject("duplicate member " + repr(name))
             seen.add(name)
+            entries[name] = member
             if name in required:
-                if not member.isfile() or member.size == 0:
+                # passwd remains a required regular file; only os-release may
+                # resolve through links, after all archive members are known.
+                if name.endswith("/etc/passwd") and (not member.isfile() or member.size == 0):
                     reject("missing or empty Debian identity file " + repr(name))
                 found_required.add(name)
             if not (name == "start-debian.sh" or name == ROOT or name.startswith(ROOT + "/") or name in PREFIXES):
@@ -84,6 +122,8 @@ def validate(stream):
                 reject("unsupported entry type " + repr(name))
             if member.size < 0:
                 reject("negative size")
+    for name in found_required:
+        validate_identity(name, entries, parents)
     if not found_root or not found_launcher:
         reject("required rootfs directory or launcher missing")
     if "--require-debian-identity" in sys.argv[1:] and found_required != required:
