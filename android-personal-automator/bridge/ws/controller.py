@@ -17,7 +17,7 @@ async def main():
     if any(ord(ch) < 33 or ord(ch) > 126 for ch in TOKEN):
         raise SystemExit("[controller] invalid token characters; use a single-line printable ASCII token")
     diagnostic = sys.argv[1] if len(sys.argv) > 1 else "git-branch"
-    if diagnostic not in ("git-branch", "tier1-tests", "ssh-status"):
+    if diagnostic not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr"):
         raise SystemExit("Unsupported diagnostic")
     request_id = "cli-" + secrets.token_hex(12)
     print(f"[controller] connecting to {URL}/controller", flush=True)
@@ -25,7 +25,7 @@ async def main():
         await ws.send(json.dumps({"id": request_id, "diagnostic": diagnostic}))
         print(f"[controller] sent {request_id}: {diagnostic}", flush=True)
         while True:
-            response = json.loads(await asyncio.wait_for(ws.recv(), timeout=30))
+            response = json.loads(await asyncio.wait_for(ws.recv(), timeout=360))
             if response.get("id") != request_id:
                 continue
             if response.get("type") == "error":
