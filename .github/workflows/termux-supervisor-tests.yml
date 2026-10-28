@@ -1,0 +1,27 @@
+name: Termux bridge supervisor tests
+
+on:
+  pull_request:
+    paths:
+      - 'android-personal-automator/bridge/termux-bridge-supervisor.sh'
+      - 'android-personal-automator/bridge/test_termux_bridge_supervisor.py'
+      - '.github/workflows/termux-supervisor-tests.yml'
+  push:
+    branches:
+      - 'feat/termux-always-on-listener-20261028'
+    paths:
+      - 'android-personal-automator/bridge/termux-bridge-supervisor.sh'
+      - 'android-personal-automator/bridge/test_termux_bridge_supervisor.py'
+      - '.github/workflows/termux-supervisor-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  supervisor-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run supervisor tests
+        run: python3 -m unittest discover -s android-personal-automator/bridge -p 'test_termux_bridge_supervisor.py' -v
