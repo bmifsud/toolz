@@ -24,6 +24,10 @@ def validate_proposal(value):
             or not isinstance(value['explanation'], str)
             or not 1 <= len(value['explanation']) <= 2000):
         raise ValueError('Invalid proposal')
+    try:
+        value['explanation'].encode('utf-8')
+    except UnicodeEncodeError:
+        raise ValueError('Invalid proposal') from None
     return value
 
 

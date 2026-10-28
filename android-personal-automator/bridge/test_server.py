@@ -64,6 +64,16 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(502, code)
         self.assertNotIn('secret', str(body))
 
+    def test_unencodable_provider_text_fails_closed(self):
+        self.server.proposer = lambda _: {'action': 'NONE', 'explanation': '\ud800'}
+        self.assertEqual((502, {'error': 'proposal_failed'}),
+                         self.request({'task': 'open', 'version': 1}))
+
+    def test_valid_unicode_provider_text_preserved(self):
+        proposal = {'action': 'NONE', 'explanation': 'Résumé ready ✓'}
+        self.server.proposer = lambda _: proposal
+        self.assertEqual((200, proposal), self.request({'task': 'open', 'version': 1}))
+
     def test_provider_parsing_and_no_storage(self):
         response = {'status': 'completed', 'output': [{'type': 'message', 'content': [
             {'type': 'output_text', 'text': '{"action":"NONE","explanation":"Unsupported"}'}]}]}
