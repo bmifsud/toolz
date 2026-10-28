@@ -30,7 +30,7 @@ class BridgeContractTests(unittest.TestCase):
         self.assertEqual(plan.status, "ready_for_executor")
         with patch.dict(os.environ, {"BRIDGE_CONTROLLER_TOKEN": "test-token", "BRIDGE_WS_URL": "wss://example.org"}, clear=True):
             with patch.object(executor.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, b"main\n", b"")):
-                result = executor.execute(plan.operation, controller_path="/tmp/controller.py")
+                result = executor.execute(plan.operation, controller_path="/tmp/controller.py", controller_interface_verified=True)
         receipt = receipts.verify_receipt({
             "request_id": "req_12345678", "diagnostic": result.diagnostic,
             "exit_code": result.exit_code, "stdout": result.stdout, "stderr": result.stderr
