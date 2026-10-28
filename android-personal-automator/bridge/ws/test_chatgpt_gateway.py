@@ -33,6 +33,14 @@ class GatewayTests(unittest.TestCase):
             self.assertEqual(response.status_code, 400)
             dispatch.assert_not_awaited()
 
+    def test_non_ascii_bearer_denied_without_dispatch(self):
+        with patch.object(gateway, "execute", new_callable=AsyncMock) as dispatch:
+            response = self.client.post("/diagnostic", json={"diagnostic": "git-branch"},
+                headers={b"Authorization": b"Bearer \xe9"})
+            self.assertEqual(response.status_code, 401)
+            self.assertEqual(response.json(), {"detail": "unauthorized"})
+            dispatch.assert_not_awaited()
+
     def test_allowlisted_request_returns_bounded_result(self):
         with patch.object(gateway, "execute", new_callable=AsyncMock, return_value={"type": "result", "id": "abc", "result": {"diagnostic": "git-branch", "exit_code": 0, "stdout": "main", "stderr": "", "secret": "omit"}, "extra": "omit"}):
             response = self.client.post("/diagnostic", json={"diagnostic": "git-branch"}, headers={"Authorization": "Bearer test-secret"})
@@ -48,6 +56,7 @@ class GatewayTests(unittest.TestCase):
         for field, value in (("diagnostic", "tier1-tests"), ("exit_code", True),
                              ("exit_code", "0"), ("exit_code", None),
                              ("stdout", {"private": "data"}), ("stderr", []),
+                             ("stdout", "\ud800"), ("stderr", "\ud800"),
                              ("error", "upstream private detail")):
             receipt = copy.deepcopy(valid)
             receipt["result"][field] = value
