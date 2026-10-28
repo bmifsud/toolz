@@ -68,6 +68,24 @@ class ReplayStoreTests(unittest.TestCase):
         with sqlite3.connect(other) as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
 
+    def test_parent_directory_symlink_swap_fails_closed(self):
+        other = Path(self.tmp.name) / "other_private"
+        other.mkdir(mode=0o700)
+        with sqlite3.connect(other / "replay.sqlite3") as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        (other / "replay.sqlite3").chmod(0o600)
+        self.path.parent.rename(self.path.parent.with_name("private_saved"))
+        self.path.parent.symlink_to(other, target_is_directory=True)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(other / "replay.sqlite3") as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_parent_directory_permission_drift_fails_closed(self):
+        self.path.parent.chmod(0o755)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
     def test_nonregular_file_swap_fails_closed(self):
         self.path.unlink()
         self.path.mkdir()
