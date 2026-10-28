@@ -66,7 +66,7 @@ async def main():
         try:
             async with connect(URL + "/device", additional_headers={"Authorization": "Bearer " + TOKEN}, max_size=8192, ping_interval=20) as ws:
                 print("[bridge] Connected; waiting for authorized requests", flush=True)
-                active = set()
+                active = {}  # request id -> cancellable subprocess task
                 try:
                     while not STOP.exists():
                         try:
@@ -77,7 +77,16 @@ async def main():
                             break
                         try:
                             data = json.loads(raw)
-                            if not isinstance(data, dict) or data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr"):
+                            if not isinstance(data, dict):
+                                continue
+                            if data.get("type") == "cancel":
+                                if set(data) != {"type", "id"}:
+                                    continue
+                                task = active.get(data["id"]) if isinstance(data["id"], str) else None
+                                if task is not None:
+                                    task.cancel()
+                                continue
+                            if data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr"):
                                 continue
                             request_id = data.get("id")
                             if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
@@ -85,15 +94,19 @@ async def main():
                             seen.add(request_id)
                             print(f"[bridge] REQUEST {request_id}: {data['diagnostic']}", flush=True)
                             task = asyncio.create_task(run_diagnostic(ws, request_id, data["diagnostic"]))
-                            active.add(task)
-                            task.add_done_callback(active.discard)
+                            active[request_id] = task
+                            def forget(done, request_id=request_id):
+                                if active.get(request_id) is done:
+                                    active.pop(request_id, None)
+                            task.add_done_callback(forget)
                         except (ValueError, TypeError, AttributeError):
                             continue
                 finally:
-                    for task in active:
+                    tasks = list(active.values())
+                    for task in tasks:
                         task.cancel()
-                    if active:
-                        await asyncio.gather(*active, return_exceptions=True)
+                    if tasks:
+                        await asyncio.gather(*tasks, return_exceptions=True)
         except (OSError, TimeoutError) as exc:
             print(f"[bridge] Disconnected: {type(exc).__name__}; retrying", flush=True)
         if STOP.exists():
