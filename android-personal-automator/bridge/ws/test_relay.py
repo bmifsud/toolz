@@ -265,5 +265,28 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(socket.accepted)
         self.assertEqual(socket.closed["code"], 1008)
 
+
+    async def test_device_reconnect_after_disconnect(self):
+        class FakeDevice:
+            request = SimpleNamespace(path="/device", headers={"Authorization": "Bearer device-" + "a" * 40})
+            def __init__(self):
+                self.closed = None
+            async def close(self, **kwargs):
+                self.closed = kwargs
+            def __aiter__(self):
+                return self
+            async def __anext__(self):
+                raise StopAsyncIteration
+
+        first = FakeDevice()
+        await self.relay.handler(first)
+        self.assertIsNone(self.relay.device)
+        self.assertIsNone(first.closed)
+        second = FakeDevice()
+        await self.relay.handler(second)
+        self.assertIsNone(self.relay.device)
+        self.assertIsNone(second.closed)
+        self.assertEqual(self.relay.pending, {})
+
 if __name__ == "__main__":
     unittest.main()
