@@ -2,7 +2,7 @@ name: Termux Task Controller Tests
 on:
   push:
     branches:
-      - feat/termux-persistent-task-controller-20261028
+      - feat/termux-task-controller-clean-20261028
   pull_request:
     paths:
       - 'android-personal-automator/bridge/ws/task_controller.py'
