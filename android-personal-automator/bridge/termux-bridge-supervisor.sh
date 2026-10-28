@@ -28,9 +28,18 @@ rm -f "$STOP"
 delay=2
 while [[ ! -e "$STOP" ]]; do
   printf '%s listener starting\n' "$(date -u +%FT%TZ)" >>"$LOG"
+  started=$SECONDS
   "$PYTHON" -u "$SCRIPT" >>"$LOG" 2>&1 || true
   [[ -e "$STOP" ]] && break
-  sleep "$delay"
+  # A listener that survived a healthy interval should not inherit old failure backoff.
+  if (( SECONDS - started >= 60 )); then
+    delay=2
+  fi
+  # Check STOP during backoff so an intentional shutdown is responsive.
+  for ((waited=0; waited<delay; waited++)); do
+    [[ -e "$STOP" ]] && break
+    sleep 1
+  done
   (( delay < 120 )) && delay=$((delay * 2))
 done
 printf '%s supervisor stopped\n' "$(date -u +%FT%TZ)" >>"$LOG"
