@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/android-emulator-readiness.yml'
       - 'docs/emulator-readiness.md'
+      - '.github/scripts/check-emulator-readiness.sh'
   workflow_dispatch:
 permissions:
   contents: read
@@ -43,30 +44,8 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
             > '${{ runner.temp }}/toolz-emulator-console.log' 2>&1
-          script: |
-            set -eu
-            # The runner's post-boot unlock can temporarily stall ADB. Retry with
-            # bounded per-command and overall attempts, never bypass boot proof.
-            ready=0
-            attempt=0
-            while [ "$attempt" -lt 12 ]; do
-              attempt=$((attempt + 1))
-              boot="$(timeout 15 adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
-              if [ "$boot" = "1" ]; then
-                ready=1
-                break
-              fi
-              sleep 5
-            done
-            if [ "$ready" -ne 1 ]; then
-              timeout 15 adb devices -l > emulator-receipts/adb-failure.txt 2>&1 || true
-              echo "NOT_READY: ADB boot property unavailable after 12 bounded attempts" > emulator-receipts/result.txt
-              exit 1
-            fi
-            timeout 30 adb -s emulator-5554 shell getprop ro.build.version.release > emulator-receipts/android-version.txt
-            timeout 30 adb -s emulator-5554 shell getprop ro.product.cpu.abi > emulator-receipts/device-abi.txt
-            timeout 30 adb devices -l > emulator-receipts/adb-devices.txt
-            echo "PASS: emulator booted and ADB connected; readiness only; gateway end-to-end test not run" > emulator-receipts/result.txt
+          # The action executes each script line independently; invoke one file.
+          script: bash .github/scripts/check-emulator-readiness.sh
       - name: Collect bounded readiness evidence
         if: always()
         shell: bash
