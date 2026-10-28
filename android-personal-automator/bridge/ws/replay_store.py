@@ -55,19 +55,27 @@ class ReplayStore:
 
     @contextmanager
     def _connect(self):
-        # sqlite3.connect(self.path) would follow a symlink installed after
-        # __init__. Bind SQLite to the verified open inode instead.
-        # /proc/self/fd is available on supported Linux/Android Termux hosts.
-        fd = os.open(self.path, os.O_RDWR | os.O_NOFOLLOW)
+        # Anchor both parent and database to verified open descriptors. A
+        # renamed directory or symlink swap cannot redirect SQLite to a new
+        # pathname between validation and use.
+        directory_fd = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
-            self._check_file(fd)
-            if os.fstat(fd).st_mode & 0o077:
-                raise OSError("replay database permissions are not private")
-            with closing(sqlite3.connect(f"/proc/self/fd/{fd}", timeout=2,
-                                         isolation_level=None)) as db:
-                yield db
+            directory_info = os.fstat(directory_fd)
+            if (directory_info.st_uid != os.getuid() or
+                    directory_info.st_mode & 0o077):
+                raise OSError("replay directory permissions are not private")
+            fd = os.open(self.path.name, os.O_RDWR | os.O_NOFOLLOW, dir_fd=directory_fd)
+            try:
+                self._check_file(fd)
+                if os.fstat(fd).st_mode & 0o077:
+                    raise OSError("replay database permissions are not private")
+                with closing(sqlite3.connect(f"/proc/self/fd/{fd}", timeout=2,
+                                             isolation_level=None)) as db:
+                    yield db
+            finally:
+                os.close(fd)
         finally:
-            os.close(fd)
+            os.close(directory_fd)
 
     def claim(self, request_id):
         """Atomically record a new ID; duplicates and capacity exhaustion deny."""
