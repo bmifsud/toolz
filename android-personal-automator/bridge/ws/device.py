@@ -73,8 +73,6 @@ async def run_diagnostic(ws, request_id, diagnostic):
                       "exit_code": 125}
         except asyncio.TimeoutError:
             result = {"diagnostic": diagnostic, "error": "timeout", "exit_code": 124}
-        if not STOP.exists():
-            await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
     finally:
         if process.returncode is None:
             try:
@@ -94,6 +92,9 @@ async def run_diagnostic(ws, request_id, diagnostic):
                 task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+    # Send a receipt only after any overflowed/timed-out worker has stopped.
+    if not STOP.exists():
+        await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
 
 
 async def main():
