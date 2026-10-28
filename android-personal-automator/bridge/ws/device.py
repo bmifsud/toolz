@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Termux read-only device listener. Requires explicit local start."""
 import asyncio
+import random
 import json
 import os
 import signal
@@ -62,9 +63,11 @@ async def run_diagnostic(ws, request_id, diagnostic):
 
 async def main():
     seen = set()
+    failures = 0
     while not STOP.exists():
         try:
             async with connect(URL + "/device", additional_headers={"Authorization": "Bearer " + TOKEN}, max_size=8192, ping_interval=20) as ws:
+                failures = 0
                 print("[bridge] Connected; waiting for authorized requests", flush=True)
                 active = set()
                 try:
@@ -94,11 +97,13 @@ async def main():
                         task.cancel()
                     if active:
                         await asyncio.gather(*active, return_exceptions=True)
-        except (OSError, TimeoutError) as exc:
+        except (OSError, TimeoutError, ConnectionClosed) as exc:
             print(f"[bridge] Disconnected: {type(exc).__name__}; retrying", flush=True)
         if STOP.exists():
             break
-        await asyncio.sleep(5)
+        failures += 1
+        delay = min(60.0, 2.0 ** min(failures, 6))
+        await asyncio.sleep(delay * (0.8 + random.random() * 0.2))
     print("[bridge] STOP requested", flush=True)
 
 if __name__ == "__main__":
