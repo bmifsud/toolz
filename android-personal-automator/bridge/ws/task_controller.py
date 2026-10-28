@@ -42,7 +42,7 @@ class TaskQueue:
         return task_id
 
     def claim(self, lease_seconds: int = 30):
-        if not isinstance(lease_seconds, int) or not 1 <= lease_seconds <= 300:
+        if not isinstance(lease_seconds, int) or isinstance(lease_seconds, bool) or not 1 <= lease_seconds <= 300:
             raise ValueError("lease out of bounds")
         now = time.time()
         with self._connect() as db:
@@ -72,8 +72,8 @@ class TaskQueue:
             raise ValueError("receipt too large")
         with self._connect() as db:
             cursor = db.execute(
-                "UPDATE tasks SET state=?,result=?,lease_until=NULL WHERE id=? AND state='running' AND deadline>?",
-                ("succeeded" if success else "failed", receipt, task_id, time.time()))
+                "UPDATE tasks SET state=?,result=?,lease_until=NULL WHERE id=? AND state='running' AND deadline>? AND lease_until>?",
+                ("succeeded" if success else "failed", receipt, task_id, time.time(), time.time()))
             return cursor.rowcount == 1
 
     def cancel(self, task_id: str) -> bool:
