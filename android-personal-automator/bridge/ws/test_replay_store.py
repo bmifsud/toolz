@@ -79,6 +79,12 @@ class ReplayStoreTests(unittest.TestCase):
         with self.assertRaises(OSError):
             self.store.claim("req_12345678")
 
+    def test_concurrent_same_id_claims_only_one_wins(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(self.store.claim, ["req_concurrent_123"] * 8))
+        self.assertEqual(sum(results), 1)
+
     def test_invalid_capacity_rejected(self):
         for value in (0, -1, True, 100_001):
             with self.subTest(value=value), self.assertRaises(ValueError):
