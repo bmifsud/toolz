@@ -28,7 +28,7 @@ async def expire_request(request_id, controller):
         await asyncio.sleep(REQUEST_TIMEOUT)
         entry = pending.get(request_id)
         if entry is not None and entry[0] is controller:
-            pending.pop(request_id, None)
+            await cancel_pending(request_id, controller)
             await controller.send(json.dumps({"type": "error", "id": request_id, "message": "request timeout"}))
     except (OSError, RuntimeError, ConnectionError):
         pass
@@ -40,6 +40,29 @@ def authorized(ws):
     token = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
     expected = DEVICE_TOKEN if path.path == "/device" else CONTROLLER_TOKEN if path.path == "/controller" else ""
     return not path.query and bool(expected) and secrets.compare_digest(token, expected)
+
+
+async def cancel_pending(request_id, controller):
+    """Cancel only a request owned by this authenticated controller.
+
+    Dropping the pending entry prevents late results from reaching the caller.
+    The device must separately acknowledge termination for end-to-end proof.
+    """
+    entry = pending.get(request_id)
+    if entry is None or entry[0] is not controller:
+        return False
+    pending.pop(request_id, None)
+    timer = entry[1]
+    if timer is not asyncio.current_task():
+        timer.cancel()
+    if device is not None:
+        try:
+            await asyncio.wait_for(
+                device.send(json.dumps({"type": "cancel", "id": request_id})),
+                timeout=5)
+        except (OSError, RuntimeError, ConnectionError, asyncio.TimeoutError):
+            pass  # Fail closed for receipts; no claim of worker termination.
+    return True
 
 
 async def handler(ws):
@@ -93,7 +116,17 @@ async def handler(ws):
                     break
                 try:
                     data = json.loads(message)
-                    if not isinstance(data, dict) or set(data) != {"id", "diagnostic"}:
+                    if not isinstance(data, dict):
+                        continue
+                    if data.get("type") == "cancel" and set(data) == {"type", "id"}:
+                        request_id = data["id"]
+                        if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64):
+                            continue
+                        cancelled = await cancel_pending(request_id, ws)
+                        await ws.send(json.dumps({"type": "error", "id": request_id,
+                            "message": "cancelled" if cancelled else "unknown request"}))
+                        continue
+                    if set(data) != {"id", "diagnostic"}:
                         continue
                     if data["diagnostic"] not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr") or not isinstance(data["id"], str) or not (8 <= len(data["id"]) <= 64) or not data["id"].replace("-", "").replace("_", "").isalnum():
                         continue
@@ -116,10 +149,9 @@ async def handler(ws):
         except WebSocketDisconnect:
             pass  # Controller disconnected without a close frame.
         finally:
-            for key, value in list(pending.items()):
-                if value[0] is ws:
-                    pending.pop(key, None)
-                    value[1].cancel()
+            # A disconnected controller must not leave its device workers running.
+            await asyncio.gather(*(cancel_pending(key, ws) for key, value
+                                   in list(pending.items()) if value[0] is ws))
 
 pending = {}
 
