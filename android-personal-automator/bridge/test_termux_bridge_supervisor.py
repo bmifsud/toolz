@@ -49,6 +49,27 @@ class SupervisorTests(unittest.TestCase):
         env = dict(self.env, BRIDGE_DEVICE_SCRIPT=str(self.home / "missing.py"))
         self.assertEqual(self.run_script("--start", env=env).returncode, 1)
 
+    def test_stop_during_backoff_is_prompt(self):
+        proc = subprocess.Popen(["bash", str(SUPERVISOR), "--start"], env=self.env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            log = self.home / ".local/state/toolz-termux-bridge/supervisor.log"
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if log.exists() and "listener-started" in log.read_text():
+                    break
+                time.sleep(0.05)
+            self.assertTrue(log.exists())
+            time.sleep(0.5)  # listener has exited; supervisor is in backoff
+            started = time.monotonic()
+            self.assertEqual(self.run_script("--stop").returncode, 0)
+            self.assertEqual(proc.wait(timeout=3), 0)
+            self.assertLess(time.monotonic() - started, 3)
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+                proc.wait(timeout=4)
+
     def test_restart_and_stop(self):
         proc = subprocess.Popen(["bash", str(SUPERVISOR), "--start"],
                                 env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
