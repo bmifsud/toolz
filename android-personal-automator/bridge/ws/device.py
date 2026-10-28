@@ -10,6 +10,7 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from readonly_runner import COMMANDS
+from replay_store import ReplayStore
 
 # Remote diagnostics are intentionally read-only; git_sync_pr.py is local-only.
 ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests", "ssh-status"})
@@ -98,7 +99,8 @@ async def run_diagnostic(ws, request_id, diagnostic):
 
 
 async def main():
-    seen = set()
+    # Commit IDs to disk before execution; restart must not permit replay.
+    replay_store = ReplayStore()
     while not STOP.exists():
         try:
             async with connect(URL + "/device", additional_headers={"Authorization": "Bearer " + TOKEN}, max_size=8192, ping_interval=20) as ws:
@@ -126,9 +128,10 @@ async def main():
                             if data.get("type") != "request" or data.get("diagnostic") not in ALLOWED_DIAGNOSTICS:
                                 continue
                             request_id = data.get("id")
-                            if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
+                            if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum():
                                 continue
-                            seen.add(request_id)
+                            if not replay_store.claim(request_id):
+                                continue
                             print(f"[bridge] REQUEST {request_id}: {data['diagnostic']}", flush=True)
                             task = asyncio.create_task(run_diagnostic(ws, request_id, data["diagnostic"]))
                             active[request_id] = task
