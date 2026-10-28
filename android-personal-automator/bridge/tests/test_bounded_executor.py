@@ -14,7 +14,13 @@ sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
 class BoundedExecutorTests(unittest.TestCase):
-    def test_unverified_controller_denied_by_default(self):\n        with patch.object(module.subprocess, 'run') as run:\n            with self.assertRaises(RuntimeError):\n                module.execute('git-branch', controller_path='/tmp/controller.py')\n            run.assert_not_called()\n\n    def test_unknown_diagnostic_rejected_without_subprocess(self):
+    def test_unverified_controller_denied_by_default(self):
+        with patch.object(module.subprocess, 'run') as run:
+            with self.assertRaises(RuntimeError):
+                module.execute('git-branch', controller_path='/tmp/controller.py')
+            run.assert_not_called()
+
+    def test_unknown_diagnostic_rejected_without_subprocess(self):
         with patch.object(module.subprocess, "run") as run:
             with self.assertRaises(ValueError):
                 module.execute("arbitrary-command", controller_path="/tmp/controller.py", controller_interface_verified=True)
