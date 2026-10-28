@@ -1,0 +1,25 @@
+name: Offline diagnostic gateway tests
+
+on:
+  pull_request:
+    paths:
+      - 'android-personal-automator/bridge/ws/chatgpt_gateway.py'
+      - 'android-personal-automator/bridge/ws/test_chatgpt_gateway.py'
+      - 'android-personal-automator/bridge/ws/gateway-test-requirements.txt'
+      - '.github/workflows/gateway-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r android-personal-automator/bridge/ws/gateway-test-requirements.txt
+      - run: python -m unittest discover -s android-personal-automator/bridge/ws -p test_chatgpt_gateway.py -v

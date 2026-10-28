@@ -4,7 +4,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -34,17 +34,53 @@ class GatewayTests(unittest.TestCase):
             dispatch.assert_not_awaited()
 
     def test_allowlisted_request_returns_bounded_result(self):
-        with patch.object(gateway, "execute", new_callable=AsyncMock, return_value={"id": "abc", "result": {"exit_code": 0, "stdout": "main", "stderr": "", "secret": "omit"}, "extra": "omit"}):
+        with patch.object(gateway, "execute", new_callable=AsyncMock, return_value={"type": "result", "id": "abc", "result": {"diagnostic": "git-branch", "exit_code": 0, "stdout": "main", "stderr": "", "secret": "omit"}, "extra": "omit"}):
             response = self.client.post("/diagnostic", json={"diagnostic": "git-branch"}, headers={"Authorization": "Bearer test-secret"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["stdout"], "main")
             self.assertNotIn("secret", str(response.json()))
+
+    def test_invalid_receipts_fail_closed(self):
+        valid = {"type": "result", "id": "abc", "result": {
+            "diagnostic": "git-branch", "exit_code": 0, "stdout": "main", "stderr": ""}}
+        import copy
+        invalid = [None, [], {**valid, "type": "error"}, {**valid, "id": ""}]
+        for field, value in (("diagnostic", "tier1-tests"), ("exit_code", True),
+                             ("exit_code", "0"), ("exit_code", None),
+                             ("stdout", {"private": "data"}), ("stderr", []),
+                             ("error", "upstream private detail")):
+            receipt = copy.deepcopy(valid)
+            receipt["result"][field] = value
+            invalid.append(receipt)
+        for receipt in invalid:
+            with self.subTest(receipt=receipt):
+                with patch.object(gateway, "execute", new_callable=AsyncMock, return_value=receipt):
+                    response = self.client.post("/diagnostic", json={"diagnostic": "git-branch"},
+                        headers={"Authorization": "Bearer test-secret"})
+                    self.assertEqual(response.status_code, 502)
+                    self.assertEqual(response.json(), {"detail": "invalid device result"})
 
     def test_transport_failure_is_generic(self):
         with patch.object(gateway, "execute", new_callable=AsyncMock, side_effect=TimeoutError()):
             response = self.client.post("/diagnostic", json={"diagnostic": "git-branch"}, headers={"Authorization": "Bearer test-secret"})
             self.assertEqual(response.status_code, 502)
             self.assertNotIn("token", response.text)
+
+
+class TransportReceiptTests(unittest.IsolatedAsyncioTestCase):
+    async def test_non_object_and_uncorrelated_json_rejected(self):
+        for raw in ("[]", "null", '"result"', '{"id":"wrong"}'):
+            with self.subTest(raw=raw):
+                socket = AsyncMock()
+                socket.recv.return_value = raw
+                connection = MagicMock()
+                connection.__aenter__ = AsyncMock(return_value=socket)
+                connection.__aexit__ = AsyncMock(return_value=False)
+                with patch.dict(os.environ, {"BRIDGE_WS_URL": "wss://example.invalid",
+                        "BRIDGE_CONTROLLER_TOKEN": "test-controller"}):
+                    with patch.object(gateway.websockets, "connect", return_value=connection):
+                        with self.assertRaisesRegex(RuntimeError, "correlation mismatch"):
+                            await gateway.execute("git-branch")
 
 
 if __name__ == "__main__":
