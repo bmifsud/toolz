@@ -14,11 +14,11 @@
 | Existing Render bridge | `android-personal-automator-bridge` | Separate legacy service; **do not modify** |
 | New Render service | `toolz-termux-ws-relay` | Isolated experimental relay |
 
-The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard https://dashboard.render.com/web/srv-dbgbgvo473hc73b11nug. It uses Frankfurt, free plan, feature branch `feat/termux-readonly-bridge-20261027`, with auto-deploy disabled. The latest checked Render deployment is **Live**; actual authenticated connectivity still needs device verification.
+The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard https://dashboard.render.com/web/srv-dbgbgvo473hc73b11nug. It uses Frankfurt, free plan, feature branch `feat/termux-readonly-bridge-20261027`, with auto-deploy **enabled** (`checksPass`) as verified on 2026-10-28; do not merge into the deployed branch without deployment authorization. The latest checked Render deployment is **Live**; actual authenticated connectivity still needs device verification.
 
 ## Security model
 
-- Only `git-branch` and `tier1-tests` are allowed through the WebSocket transport; the device must have the updated client and runner for `tier1-tests`.
+- Only `git-branch`, `tier1-tests`, and `ssh-status` are allowed through the WebSocket transport; the device must have the updated client and runner for `tier1-tests`. `git-sync-pr` is deliberately excluded because it can mutate the checkout; invoke it locally only after separate user authorization.
 - No arbitrary shell, writes, APK installs, screenshots, backup operations or privileged Android commands.
 - Device connects outward over `wss://`; controller must be separately authenticated.
 - Distinct random secrets (minimum 32 characters): `BRIDGE_DEVICE_TOKEN` and `BRIDGE_CONTROLLER_TOKEN`. Set in Render environment, **never** commit, paste into issues, or expose in logs. Headers use `Authorization: Bearer ...`.
