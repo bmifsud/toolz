@@ -55,6 +55,54 @@ class ReplayStoreTests(unittest.TestCase):
         with self.assertRaises(OSError):
             ReplayStore(link)
 
+    def test_symlink_swap_after_initialization_fails_closed(self):
+        # An attacker with same-UID filesystem access must not redirect writes
+        # to another SQLite database after ReplayStore construction.
+        other = Path(self.tmp.name) / "other.sqlite3"
+        with sqlite3.connect(other) as db:
+            db.execute("CREATE TABLE requests (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        self.path.rename(self.path.with_suffix(".saved"))
+        self.path.symlink_to(other)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(other) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_parent_directory_symlink_swap_fails_closed(self):
+        other = Path(self.tmp.name) / "other_private"
+        other.mkdir(mode=0o700)
+        with sqlite3.connect(other / "replay.sqlite3") as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        (other / "replay.sqlite3").chmod(0o600)
+        self.path.parent.rename(self.path.parent.with_name("private_saved"))
+        self.path.parent.symlink_to(other, target_is_directory=True)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(other / "replay.sqlite3") as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_parent_directory_permission_drift_fails_closed(self):
+        self.path.parent.chmod(0o755)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_nonregular_file_swap_fails_closed(self):
+        self.path.unlink()
+        self.path.mkdir()
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_relaxed_permissions_after_initialization_fail_closed(self):
+        self.path.chmod(0o644)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_concurrent_same_id_claims_only_one_wins(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(self.store.claim, ["req_concurrent_123"] * 8))
+        self.assertEqual(sum(results), 1)
+
     def test_invalid_capacity_rejected(self):
         for value in (0, -1, True, 100_001):
             with self.subTest(value=value), self.assertRaises(ValueError):
