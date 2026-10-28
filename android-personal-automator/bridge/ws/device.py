@@ -11,6 +11,9 @@ from websockets.exceptions import ConnectionClosed
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from readonly_runner import COMMANDS
 
+# Remote diagnostics are intentionally read-only; git_sync_pr.py is local-only.
+ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests", "ssh-status"})
+
 URL = os.environ["BRIDGE_WS_URL"].rstrip("/")
 TOKEN = os.environ["BRIDGE_DEVICE_TOKEN"]
 STOP = Path.home() / ".local/state/toolz-termux-bridge/STOP"
@@ -19,10 +22,9 @@ if not URL.startswith("wss://") or len(TOKEN) < 32:
 
 async def run_diagnostic(ws, request_id, diagnostic):
     """Execute only allowlisted commands; stop the subprocess on cancellation."""
-    if diagnostic == "git-sync-pr":
-        command = [sys.executable, str(Path(__file__).with_name("git_sync_pr.py"))]
-    else:
-        command = COMMANDS[diagnostic]
+    if diagnostic not in ALLOWED_DIAGNOSTICS:
+        raise ValueError("diagnostic not remotely allowlisted")
+    command = COMMANDS[diagnostic]
     cwd = None
     if diagnostic == "tier1-tests":
         checkout = Path.home() / "toolz-tier1-test"
@@ -37,7 +39,7 @@ async def run_diagnostic(ws, request_id, diagnostic):
     try:
         try:
             stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=300 if diagnostic == "git-sync-pr" else 120 if diagnostic == "tier1-tests" else 10)
+                process.communicate(), timeout=120 if diagnostic == "tier1-tests" else 10)
             result = {"diagnostic": diagnostic, "exit_code": process.returncode,
                       "stdout": stdout.decode("utf-8", errors="replace")[:4096],
                       "stderr": stderr.decode("utf-8", errors="replace")[:1024]}
@@ -86,7 +88,7 @@ async def main():
                                 if task is not None:
                                     task.cancel()
                                 continue
-                            if data.get("type") != "request" or data.get("diagnostic") not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr"):
+                            if data.get("type") != "request" or data.get("diagnostic") not in ALLOWED_DIAGNOSTICS:
                                 continue
                             request_id = data.get("id")
                             if not isinstance(request_id, str) or not (8 <= len(request_id) <= 64) or not request_id.replace("-", "").replace("_", "").isalnum() or request_id in seen:
