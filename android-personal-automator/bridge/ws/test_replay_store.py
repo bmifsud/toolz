@@ -55,6 +55,30 @@ class ReplayStoreTests(unittest.TestCase):
         with self.assertRaises(OSError):
             ReplayStore(link)
 
+    def test_symlink_swap_after_initialization_fails_closed(self):
+        # An attacker with same-UID filesystem access must not redirect writes
+        # to another SQLite database after ReplayStore construction.
+        other = Path(self.tmp.name) / "other.sqlite3"
+        with sqlite3.connect(other) as db:
+            db.execute("CREATE TABLE requests (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        self.path.rename(self.path.with_suffix(".saved"))
+        self.path.symlink_to(other)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(other) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_nonregular_file_swap_fails_closed(self):
+        self.path.unlink()
+        self.path.mkdir()
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_relaxed_permissions_after_initialization_fail_closed(self):
+        self.path.chmod(0o644)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
     def test_invalid_capacity_rejected(self):
         for value in (0, -1, True, 100_001):
             with self.subTest(value=value), self.assertRaises(ValueError):
