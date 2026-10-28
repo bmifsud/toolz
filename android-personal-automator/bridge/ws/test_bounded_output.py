@@ -61,6 +61,20 @@ class BoundedOutputTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["error"], "output limit exceeded")
         self.assertNotIn("stdout", result)
 
+    async def test_overflow_worker_exits_before_receipt(self):
+        pidfile = Path(self.directory.name) / "worker.pid"
+        code = (
+            "import os,sys,time;"
+            "open(" + repr(str(pidfile)) + ",'w').write(str(os.getpid()));"
+            "sys.stdout.write('x'*1048576);sys.stdout.flush();"
+            "time.sleep(30)"
+        )
+        result = await self._run(code)
+        self.assertEqual(result["error"], "output limit exceeded")
+        pid = int(pidfile.read_text())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+
     async def test_large_stderr_rejected_before_buffering_all(self):
         result = await self._run(
             "import sys;sys.stderr.write('e'*1048576);sys.stderr.flush()")
