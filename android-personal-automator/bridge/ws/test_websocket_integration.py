@@ -92,5 +92,40 @@ class WebSocketIntegrationTests(unittest.TestCase):
                     self.assertEqual(controller.receive_json()["result"]["stdout"], "recovered")
 
 
+    def test_authenticated_cancel_frame_and_late_result(self):
+        with TestClient(self.relay.app) as client:
+            with client.websocket_connect("/device", headers={
+                "Authorization": "Bearer " + self.device_token
+            }) as device:
+                with client.websocket_connect("/controller", headers={
+                    "Authorization": "Bearer " + self.controller_token
+                }) as controller:
+                    controller.send_json({"id": "integration06", "diagnostic": "git-branch"})
+                    self.assertEqual(device.receive_json()["type"], "request")
+                    controller.send_json({"type": "cancel", "id": "integration06"})
+                    self.assertEqual(device.receive_json(), {
+                        "type": "cancel", "id": "integration06"
+                    })
+                    self.assertEqual(controller.receive_json()["message"], "cancelled")
+                    device.send_json({"type": "result", "id": "integration06",
+                                      "result": {"exit_code": 0}})
+                    self.assertNotIn("integration06", self.relay.pending)
+
+    def test_controller_disconnect_sends_device_cancel(self):
+        with TestClient(self.relay.app) as client:
+            with client.websocket_connect("/device", headers={
+                "Authorization": "Bearer " + self.device_token
+            }) as device:
+                with client.websocket_connect("/controller", headers={
+                    "Authorization": "Bearer " + self.controller_token
+                }) as controller:
+                    controller.send_json({"id": "integration07", "diagnostic": "ssh-status"})
+                    self.assertEqual(device.receive_json()["type"], "request")
+                self.assertEqual(device.receive_json(), {
+                    "type": "cancel", "id": "integration07"
+                })
+                self.assertNotIn("integration07", self.relay.pending)
+
+
 if __name__ == "__main__":
     unittest.main()
