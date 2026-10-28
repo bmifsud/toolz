@@ -33,14 +33,19 @@ async def expire_request(request_id, controller):
     except (OSError, RuntimeError, ConnectionError):
         pass
 
-async def handler(ws):
-    global device
+def authorized(ws):
+    """Check role and bearer token before accepting a WebSocket handshake."""
     path = urlsplit(ws.request.path)
-    role = path.path
     authorization = ws.request.headers.get("Authorization", "")
     token = authorization.removeprefix("Bearer ") if authorization.startswith("Bearer ") else ""
-    expected = DEVICE_TOKEN if role == "/device" else CONTROLLER_TOKEN if role == "/controller" else ""
-    if path.query or not expected or not secrets.compare_digest(token, expected):
+    expected = DEVICE_TOKEN if path.path == "/device" else CONTROLLER_TOKEN if path.path == "/controller" else ""
+    return not path.query and bool(expected) and secrets.compare_digest(token, expected)
+
+
+async def handler(ws):
+    global device
+    role = urlsplit(ws.request.path).path
+    if not authorized(ws):
         await ws.close(code=1008, reason="Unauthorized")
         return
     if role == "/device":
@@ -149,8 +154,13 @@ class SocketAdapter:
             raise StopAsyncIteration
 
 async def websocket_endpoint(socket):
+    adapter = SocketAdapter(socket)
+    # A successful handshake must never be logged for an unauthenticated peer.
+    if not authorized(adapter):
+        await socket.close(code=1008, reason="Unauthorized")
+        return
     await socket.accept()
-    await handler(SocketAdapter(socket))
+    await handler(adapter)
 
 async def healthz(request):
     return PlainTextResponse("ok\n", headers={"Cache-Control": "no-store"})
