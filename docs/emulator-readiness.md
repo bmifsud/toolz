@@ -25,3 +25,9 @@ After readiness passes, issue #36 still requires the separate authenticated gate
 ## Post-boot ADB retry (2026-10-28)
 
 CI run [40651085041](https://github.com/bmifsud/toolz/actions/runs/40651085041) reached `sys.boot_completed=1` in the emulator runner, but its post-boot unlock command stalled and the readiness script's subsequent single 10-second ADB query failed. This is an observed timing failure, **not** proof of a gateway or Termux connection. The workflow now retries the exact boot-property check for at most 12 attempts, with a 15-second per-query bound and 5-second pauses, and fails closed if no exact `1` is observed. Version/ABI probes have 30-second limits. A failure still uploads redacted, bounded readiness evidence. This change requires a fresh CI run on its exact commit before it can be considered verified.
+
+## Follow-up: runner executes script lines separately (2026-10-28)
+
+The revised CI run [40659596175](https://github.com/bmifsud/toolz/actions/runs/40659596175) reached `sys.boot_completed=1`, but the emulator-runner action invoked each line of the YAML `script:` separately as `/usr/bin/sh -c ...`. The first `while ...; do` line therefore failed with `Syntax error: end of file unexpected (expecting "done")`. This is a deterministic script-invocation defect, **not** a passing ADB readiness test. The run uploaded a failure artifact.
+
+The action now invokes `bash .github/scripts/check-emulator-readiness.sh` as one command, so compound loops run in a single Bash process. The script preserves bounded ADB retries and fail-closed receipts. Local `bash -n` and mock-ADB success/failure checks passed; these do **not** establish emulator or authenticated gateway end-to-end behavior. The updated commit needs a new green Actions run and receipt inspection before readiness can be accepted.
