@@ -21,7 +21,7 @@ The workflow **Bridge routing coverage** runs these tests on Ubuntu 24.04 with P
 
 ## Initial measurement
 
-Measured on 2026-10-28 at main revision `64be9874f64b1f3eeb60877b93beddef1f5d4094`, using Python 3.12.14 and coverage.py 7.6.12 on the managed Debian 13 runner. All 28 existing offline tests passed. The CI workflow has not yet been run for this change.
+Measured on 2026-10-28 at main revision `64be9874f64b1f3eeb60877b93beddef1f5d4094`, using Python 3.12.14 and coverage.py 7.6.12 on the managed Debian 13 runner. All 28 existing offline tests passed. The first [CI baseline run](https://github.com/bmifsud/toolz/actions/runs/40650231055) passed on revision `62ecc70da9b64dde7bd504a5badf41115d4a6053`, reproduced the 96.69% combined total, and published the four report files. This is pre-merge CI evidence, not post-merge or device verification.
 
 | Module | Executed statements | Covered branch exits | Combined coverage |
 | --- | ---: | ---: | ---: |
