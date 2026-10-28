@@ -10,6 +10,7 @@ from websockets.exceptions import ConnectionClosed
 
 URL = os.environ.get("BRIDGE_WS_URL", "wss://toolz-termux-ws-relay.onrender.com").rstrip("/")
 TOKEN = os.environ.get("BRIDGE_CONTROLLER_TOKEN", "")
+ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests", "ssh-status"})
 
 async def main():
     if not URL.startswith("wss://") or len(TOKEN) < 32:
@@ -17,7 +18,7 @@ async def main():
     if any(ord(ch) < 33 or ord(ch) > 126 for ch in TOKEN):
         raise SystemExit("[controller] invalid token characters; use a single-line printable ASCII token")
     diagnostic = sys.argv[1] if len(sys.argv) > 1 else "git-branch"
-    if diagnostic not in ("git-branch", "tier1-tests", "ssh-status", "git-sync-pr"):
+    if diagnostic not in ALLOWED_DIAGNOSTICS:
         raise SystemExit("Unsupported diagnostic")
     request_id = "cli-" + secrets.token_hex(12)
     print(f"[controller] connecting to {URL}/controller", flush=True)
