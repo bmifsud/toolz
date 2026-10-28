@@ -18,7 +18,9 @@ class Result:
     stderr: str
 
 def execute(diagnostic: str, *, controller_path: str, timeout: int = 30, controller_interface_verified: bool = False) -> Result:
-    if controller_interface_verified is not True:\n        raise RuntimeError('controller --diagnostic interface has not been verified')\n    if diagnostic not in ALLOWED:
+    if controller_interface_verified is not True:
+        raise RuntimeError('controller --diagnostic interface has not been verified')
+    if diagnostic not in ALLOWED:
         raise ValueError("diagnostic not allowlisted")
     if not isinstance(controller_path, str) or not os.path.isabs(controller_path):
         raise ValueError("absolute controller path required")
