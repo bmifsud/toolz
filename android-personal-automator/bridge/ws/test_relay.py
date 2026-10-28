@@ -222,5 +222,48 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
             self.relay.pending.clear()
             self.relay.device = None
 
+
+    async def test_asgi_rejects_wrong_role_token_before_accept(self):
+        class FakeSocket:
+            scope = {"path": "/device", "query_string": b""}
+            headers = {"Authorization": "Bearer controller-" + "b" * 40}
+            def __init__(self):
+                self.accepted = False
+                self.closed = None
+            async def accept(self): self.accepted = True
+            async def close(self, **kwargs): self.closed = kwargs
+        socket = FakeSocket()
+        await self.relay.websocket_endpoint(socket)
+        self.assertFalse(socket.accepted)
+        self.assertEqual(socket.closed["code"], 1008)
+
+    async def test_asgi_rejects_query_even_with_valid_bearer(self):
+        class FakeSocket:
+            scope = {"path": "/device", "query_string": b"token=unsafe"}
+            headers = {"Authorization": "Bearer device-" + "a" * 40}
+            def __init__(self):
+                self.accepted = False
+                self.closed = None
+            async def accept(self): self.accepted = True
+            async def close(self, **kwargs): self.closed = kwargs
+        socket = FakeSocket()
+        await self.relay.websocket_endpoint(socket)
+        self.assertFalse(socket.accepted)
+        self.assertEqual(socket.closed["code"], 1008)
+
+    async def test_asgi_rejects_invalid_bearer_before_accept(self):
+        class FakeSocket:
+            scope = {"path": "/controller", "query_string": b""}
+            headers = {"Authorization": "Bearer invalid-token"}
+            def __init__(self):
+                self.accepted = False
+                self.closed = None
+            async def accept(self): self.accepted = True
+            async def close(self, **kwargs): self.closed = kwargs
+        socket = FakeSocket()
+        await self.relay.websocket_endpoint(socket)
+        self.assertFalse(socket.accepted)
+        self.assertEqual(socket.closed["code"], 1008)
+
 if __name__ == "__main__":
     unittest.main()
