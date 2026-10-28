@@ -20,8 +20,26 @@ STOP = Path.home() / ".local/state/toolz-termux-bridge/STOP"
 if not URL.startswith("wss://") or len(TOKEN) < 32:
     raise SystemExit("Require wss:// and a long device token")
 
+class OutputLimitExceeded(Exception):
+    """A subprocess emitted more data than the permitted receipt budget."""
+
+
+async def _read_limited(stream, limit):
+    """Read at most limit bytes; never buffer unlimited subprocess output."""
+    chunks = []
+    total = 0
+    while True:
+        chunk = await stream.read(min(1024, limit - total + 1))
+        if not chunk:
+            return b"".join(chunks)
+        if total + len(chunk) > limit:
+            raise OutputLimitExceeded()
+        chunks.append(chunk)
+        total += len(chunk)
+
+
 async def run_diagnostic(ws, request_id, diagnostic):
-    """Execute only allowlisted commands; stop the subprocess on cancellation."""
+    """Run a fixed allowlisted diagnostic with bounded memory and cancellation."""
     if diagnostic not in ALLOWED_DIAGNOSTICS:
         raise ValueError("diagnostic not remotely allowlisted")
     command = COMMANDS[diagnostic]
@@ -36,17 +54,25 @@ async def run_diagnostic(ws, request_id, diagnostic):
     process = await asyncio.create_subprocess_exec(
         *command, cwd=cwd, stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE, start_new_session=True)
+    tasks = []
     try:
+        tasks = [
+            asyncio.create_task(_read_limited(process.stdout, 4096)),
+            asyncio.create_task(_read_limited(process.stderr, 1024)),
+            asyncio.create_task(process.wait()),
+        ]
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=120 if diagnostic == "tier1-tests" else 10)
+            stdout, stderr, _ = await asyncio.wait_for(
+                asyncio.gather(*tasks),
+                timeout=120 if diagnostic == "tier1-tests" else 10)
             result = {"diagnostic": diagnostic, "exit_code": process.returncode,
-                      "stdout": stdout.decode("utf-8", errors="replace")[:4096],
-                      "stderr": stderr.decode("utf-8", errors="replace")[:1024]}
+                      "stdout": stdout.decode("utf-8", errors="replace"),
+                      "stderr": stderr.decode("utf-8", errors="replace")}
+        except OutputLimitExceeded:
+            result = {"diagnostic": diagnostic, "error": "output limit exceeded",
+                      "exit_code": 125}
         except asyncio.TimeoutError:
-            result = {"diagnostic": diagnostic, "error": "timeout"}
-        if not STOP.exists():
-            await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
+            result = {"diagnostic": diagnostic, "error": "timeout", "exit_code": 124}
     finally:
         if process.returncode is None:
             try:
@@ -54,13 +80,22 @@ async def run_diagnostic(ws, request_id, diagnostic):
             except ProcessLookupError:
                 pass
             try:
-                await asyncio.wait_for(process.communicate(), timeout=2)
+                await asyncio.wait_for(process.wait(), timeout=2)
             except asyncio.TimeoutError:
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
-                await process.communicate()
+                await process.wait()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+    # Send a receipt only after any overflowed/timed-out worker has stopped.
+    if not STOP.exists():
+        await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
+
 
 async def main():
     seen = set()
