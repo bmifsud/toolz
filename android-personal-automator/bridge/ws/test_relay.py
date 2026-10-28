@@ -6,7 +6,7 @@ import os
 import logging
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 class RelayTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -35,6 +35,38 @@ class RelayTests(unittest.IsolatedAsyncioTestCase):
     async def test_non_health_request_proceeds_to_websocket(self):
         result = await self.relay.process_request(None, SimpleNamespace(path="/device"))
         self.assertIsNone(result)
+
+    async def test_pre_accept_auth_rejects_without_handshake(self):
+        class FakeSocket:
+            scope = {"path": "/device", "query_string": b""}
+            headers = {}
+            def __init__(self):
+                self.accepted = False
+                self.closed = None
+            async def accept(self):
+                self.accepted = True
+            async def close(self, **kwargs):
+                self.closed = kwargs
+
+        socket = FakeSocket()
+        await self.relay.websocket_endpoint(socket)
+        self.assertFalse(socket.accepted)
+        self.assertEqual(socket.closed["code"], 1008)
+
+    async def test_pre_accept_auth_accepts_valid_token(self):
+        class FakeSocket:
+            scope = {"path": "/controller", "query_string": b""}
+            headers = {"Authorization": "Bearer controller-" + "b" * 40}
+            def __init__(self):
+                self.accepted = False
+            async def accept(self):
+                self.accepted = True
+
+        socket = FakeSocket()
+        with patch.object(self.relay, "handler", new_callable=AsyncMock) as handler:
+            await self.relay.websocket_endpoint(socket)
+        self.assertTrue(socket.accepted)
+        handler.assert_awaited_once()
 
     async def test_unauthorized_device_rejected(self):
         class FakeSocket:
