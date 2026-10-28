@@ -28,7 +28,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          disable-animations: true
+          disable-animations: false
           emulator-boot-timeout: 900
           script: |
             set -eu
