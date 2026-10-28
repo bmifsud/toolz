@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "toolz-cli"
+version = "0.1.0"
+description = "Local capability inventory for Toolz integration readiness"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+toolz-readiness = "toolz_cli.readiness:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

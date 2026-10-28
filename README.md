@@ -23,6 +23,10 @@ Toolz is an integrated repository providing automated backup & recovery manageme
 
 ## Usage Guide
 
+For a local executable inventory and the pending Termux → Debian → Cline
+integration gates, see the [host readiness CLI preview](cli/README.md).
+This inventory does not establish authenticated device connectivity.
+
 ### 1. Running Backups
 Execute the backup script directly:
 ```bash
