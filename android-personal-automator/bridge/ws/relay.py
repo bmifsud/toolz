@@ -125,7 +125,7 @@ async def handler(ws):
                             continue
                         cancelled = await cancel_pending(request_id, ws)
                         await ws.send(json.dumps({"type": "error", "id": request_id,
-                            "message": "cancelled" if cancelled else "unknown request"}))
+                            "message": "cancellation attempted; worker termination unverified" if cancelled else "unknown request"}))
                         continue
                     if set(data) != {"id", "diagnostic"}:
                         continue
