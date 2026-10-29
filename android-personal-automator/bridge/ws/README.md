@@ -40,11 +40,19 @@ The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard htt
 
 ## Tablet installation (manual consent required)
 
-Keep the existing backup checkout and branch unchanged. In Termux, explicitly fetch the reviewed feature branch files into a separate directory; do **not** merge or reset the backup branch.
+Keep the existing backup checkout and branch unchanged. In Termux, only **after emulator gate and explicit device approval**, stage files from an independently reviewed immutable commit in a separate directory; do **not** merge or reset the backup branch. The old deployed feature branch may not contain `replay_store.py` and must not be assumed compatible.
 
 ```bash
+# Only after emulator gate and explicit physical-device approval:
+# Provide the reviewed immutable commit and the branch/ref that contains it.
+: "${REVIEWED_BRIDGE_REF:?Set an approved reviewed branch/ref}"
+: "${REVIEWED_BRIDGE_SHA:?Set its exact reviewed commit SHA}"
 cd ~/toolz-tier1-test
-git fetch origin feat/termux-readonly-bridge-20261027
+git fetch --no-tags origin "$REVIEWED_BRIDGE_REF"
+[[ "$(git rev-parse FETCH_HEAD)" == "$REVIEWED_BRIDGE_SHA" ]] || {
+  echo "Bridge revision mismatch; refusing to stage listener" >&2
+  exit 1
+}
 mkdir -p "$HOME/toolz-ws-bridge"
 for name in device.py replay_store.py requirements.txt; do
   git show "FETCH_HEAD:android-personal-automator/bridge/ws/$name" > "$HOME/toolz-ws-bridge/$name"
