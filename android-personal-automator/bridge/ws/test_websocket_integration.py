@@ -106,7 +106,11 @@ class WebSocketIntegrationTests(unittest.TestCase):
                     self.assertEqual(device.receive_json(), {
                         "type": "cancel", "id": "integration06"
                     })
-                    self.assertEqual(controller.receive_json()["message"], "cancelled")
+                    cancel_status = controller.receive_json()
+                    self.assertEqual(cancel_status["type"], "error")
+                    self.assertEqual(cancel_status["id"], "integration06")
+                    self.assertEqual(cancel_status["message"],
+                                     "cancellation attempted; worker termination unverified")
                     device.send_json({"type": "result", "id": "integration06",
                                       "result": {"exit_code": 0}})
                     self.assertNotIn("integration06", self.relay.pending)
