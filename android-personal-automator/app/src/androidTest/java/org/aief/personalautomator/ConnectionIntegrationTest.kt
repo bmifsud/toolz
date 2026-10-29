@@ -4,6 +4,8 @@ import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Button
+import android.widget.TextView
 import android.widget.CheckBox
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -62,6 +64,46 @@ class ConnectionIntegrationTest {
         try { vault.useToken(false, "https://two.example/proposal") { true }; fail("Reused destination-bound token") }
         catch (_: IllegalStateException) { }
         assertNull(vault.settings(true))
+    }
+
+    @Test fun forgottenConnectionIsNotResavedWhenActivityStops() {
+        ConnectionVault(context).save(true, address, "auto", "Saved task text", fakeToken)
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            var restored = false
+            for (attempt in 0..100) {
+                scenario.onActivity { activity ->
+                    val fields = descendants(activity.window.decorView).filterIsInstance<EditText>()
+                    restored = fields.size == 4 &&
+                        fields[2].text.toString() == "Saved task text" && fields[2].isEnabled
+                }
+                if (restored) break
+                Thread.sleep(50)
+            }
+            assertTrue("Connection was not restored before Forget", restored)
+            scenario.onActivity { activity ->
+                descendants(activity.window.decorView).filterIsInstance<Button>()
+                    .first { it.text.toString() == "Forget saved connection and token" }
+                    .performClick()
+            }
+            var forgotten = false
+            for (attempt in 0..100) {
+                scenario.onActivity { activity ->
+                    val views = descendants(activity.window.decorView)
+                    forgotten = views.filterIsInstance<TextView>().any {
+                        it.text.toString() == "Saved connection and token forgotten."
+                    } && views.filterIsInstance<EditText>()[2].isEnabled
+                }
+                if (forgotten) break
+                Thread.sleep(50)
+            }
+            assertTrue("Forget action did not finish", forgotten)
+            assertNull(ConnectionVault(context).settings(true))
+        }
+        // ActivityScenario.close() invokes onStop/onDestroy; a queued stop-time save
+        // must not recreate settings or a token after the explicit Forget action.
+        Thread.sleep(500)
+        assertNull("Stopping the Activity recreated forgotten settings",
+            ConnectionVault(context).settings(true))
     }
 
     @Test fun tamperedCiphertextFailsClosed() {
