@@ -238,6 +238,31 @@ class TaskControllerTests(unittest.TestCase):
         self.assertEqual(record["state"], "failed")
         self.assertEqual(json.loads(record["result"])["error"], "deadline_exceeded")
 
+    def test_late_cancel_cannot_override_expired_queued_deadline(self):
+        import json
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=1)
+        deadline = self.queue.get(task_id)["deadline"]
+        with patch("task_controller.time.time", return_value=deadline + 1):
+            self.assertFalse(self.queue.cancel(task_id))
+            record = self.queue.get(task_id)
+        self.assertEqual(record["state"], "failed")
+        self.assertEqual(json.loads(record["result"])["error"], "deadline_exceeded")
+        self.assertEqual(record["attempt"], 0)
+
+    def test_late_cancel_cannot_override_expired_running_lease(self):
+        import json
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=120)
+        self.queue.claim(lease_seconds=1)
+        created = self.queue.get(task_id)["created"]
+        with patch("task_controller.time.time", return_value=created + 2):
+            self.assertFalse(self.queue.cancel(task_id))
+            record = self.queue.get(task_id)
+        self.assertEqual(record["state"], "failed")
+        self.assertEqual(json.loads(record["result"])["error"], "lease_expired")
+        self.assertEqual(record["attempt"], 1)
+
     def test_cancel_queued_task_never_claimed(self):
         task_id = self.queue.submit("git-branch")
         self.assertTrue(self.queue.cancel(task_id))
