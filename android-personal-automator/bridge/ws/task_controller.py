@@ -62,6 +62,13 @@ class TaskQueue:
     def complete(self, task_id: str, result: dict, *, success: bool) -> bool:
         if not isinstance(result, dict):
             raise ValueError("invalid result")
+        if type(success) is not bool:
+            raise ValueError("success must be a boolean")
+        # A caller-supplied success flag cannot turn a failed or missing
+        # exit status into a successful durable receipt. An unsuccessful
+        # result may still have exit_code=0 (e.g. termination unverified).
+        if success and (type(result.get("exit_code")) is not int or result["exit_code"] != 0):
+            raise ValueError("successful receipt requires integer exit_code 0")
         # Prevent unbounded receipts and accidental persistence of arbitrary response fields.
         receipt = json.dumps({
             "exit_code": result.get("exit_code"),
