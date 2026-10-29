@@ -59,7 +59,9 @@ class CancelProtocolTests(unittest.IsolatedAsyncioTestCase):
         await self.relay.handler(controller)
         self.assertEqual([m["type"] for m in device.sent], ["request", "cancel"])
         self.assertEqual(device.sent[1]["id"], request_id)
-        self.assertEqual(controller.sent[-1]["message"], "cancelled")
+        self.assertEqual(controller.sent[-1]["message"], "cancellation attempted; worker termination unverified")
+        # No worker-termination receipt has been received by this controller.
+        self.assertFalse(any(m.get("type") == "cancel_ack" for m in device.sent))
         self.assertNotIn(request_id, self.relay.pending)
 
     async def test_other_controller_cannot_cancel_request(self):
