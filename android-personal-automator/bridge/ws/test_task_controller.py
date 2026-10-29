@@ -188,6 +188,56 @@ class TaskControllerTests(unittest.TestCase):
         self.assertEqual(receipt["stderr"], "")
         self.assertFalse(receipt["output_suppressed"])
 
+    def test_status_poll_reconciles_queued_deadline_without_dispatcher(self):
+        import json
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=1)
+        deadline = self.queue.get(task_id)["deadline"]
+        with patch("task_controller.time.time", return_value=deadline + 1):
+            first = self.queue.get(task_id)
+            again = self.queue.get(task_id)
+            self.assertIsNone(self.queue.claim())
+        self.assertEqual(first["state"], "failed")
+        self.assertEqual(first, again)
+        self.assertEqual(first["attempt"], 0)
+        self.assertEqual(json.loads(first["result"])["error"], "deadline_exceeded")
+
+    def test_status_poll_reconciles_running_lease_after_restart(self):
+        import json
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=120)
+        self.queue.claim(lease_seconds=1)
+        restarted = TaskQueue(Path(self.tmp.name) / "tasks.sqlite")
+        created = self.queue.get(task_id)["created"]
+        with patch("task_controller.time.time", return_value=created + 2):
+            record = restarted.get(task_id)
+            self.assertFalse(restarted.complete(task_id, {"exit_code": 0}, success=True))
+        self.assertEqual(record["state"], "failed")
+        self.assertEqual(record["attempt"], 1)
+        receipt = json.loads(record["result"])
+        self.assertEqual(receipt["receipt_version"], 2)
+        self.assertEqual(receipt["error"], "lease_expired")
+        self.assertIsNone(receipt["exit_code"])  # Worker termination is not verified.
+
+    def test_status_poll_does_not_rewrite_terminal_cancellation(self):
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=1)
+        self.assertTrue(self.queue.cancel(task_id))
+        deadline = self.queue.get(task_id)["deadline"]
+        with patch("task_controller.time.time", return_value=deadline + 1):
+            self.assertEqual(self.queue.get(task_id)["state"], "cancelled")
+
+    def test_status_poll_deadline_precedes_lease_expiry(self):
+        import json
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=2)
+        self.queue.claim(lease_seconds=1)
+        deadline = self.queue.get(task_id)["deadline"]
+        with patch("task_controller.time.time", return_value=deadline + 1):
+            record = self.queue.get(task_id)
+        self.assertEqual(record["state"], "failed")
+        self.assertEqual(json.loads(record["result"])["error"], "deadline_exceeded")
+
     def test_cancel_queued_task_never_claimed(self):
         task_id = self.queue.submit("git-branch")
         self.assertTrue(self.queue.cancel(task_id))
