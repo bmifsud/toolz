@@ -81,6 +81,30 @@ class ReplayStoreTests(unittest.TestCase):
         with sqlite3.connect(other / "replay.sqlite3") as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
 
+    def test_same_owner_regular_file_swap_fails_closed_while_running(self):
+        self.assertTrue(self.store.claim("req_12345678"))
+        self.assertFalse(self.store.claim("req_12345678"))
+        self.path.rename(self.path.with_suffix(".saved"))
+        with sqlite3.connect(self.path) as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        self.path.chmod(0o600)
+        with self.assertRaisesRegex(OSError, "identity changed"):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_same_owner_regular_directory_swap_fails_closed_while_running(self):
+        self.assertTrue(self.store.claim("req_12345678"))
+        saved = self.path.parent.with_name("private_saved")
+        self.path.parent.rename(saved)
+        replacement = self.path.parent
+        replacement.mkdir(mode=0o700)
+        with sqlite3.connect(replacement / "replay.sqlite3") as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        (replacement / "replay.sqlite3").chmod(0o600)
+        with self.assertRaisesRegex(OSError, "replay directory permissions"):
+            self.store.claim("req_12345678")
+
     def test_parent_directory_permission_drift_fails_closed(self):
         self.path.parent.chmod(0o755)
         with self.assertRaises(OSError):
