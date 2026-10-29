@@ -39,6 +39,55 @@ async def _read_limited(stream, limit):
         total += len(chunk)
 
 
+
+async def _terminate_process_group(process):
+    """Best-effort whole-group termination, even after the leader has exited.
+
+    A process may leave children in its session after the parent has been
+    reaped. The process return code is NOT proof that the group has stopped.
+    On platforms where the group cannot be proven absent, fail closed.
+    """
+    pgid = process.pid  # start_new_session=True makes the leader the PGID.
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        return False
+
+    for _ in range(20):
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            break
+        except PermissionError:
+            return False
+        await asyncio.sleep(0.05)
+    else:
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            return False
+
+    if process.returncode is None:
+        try:
+            await asyncio.wait_for(process.wait(), timeout=2)
+        except asyncio.TimeoutError:
+            return False
+
+    # killpg(..., 0) can still see unreaped zombies; conservative failure
+    # is preferable to asserting successful termination without evidence.
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    return False
+
+
 async def run_diagnostic(ws, request_id, diagnostic):
     """Run a fixed allowlisted diagnostic with bounded memory and cancellation."""
     if diagnostic not in ALLOWED_DIAGNOSTICS:
@@ -75,24 +124,16 @@ async def run_diagnostic(ws, request_id, diagnostic):
         except asyncio.TimeoutError:
             result = {"diagnostic": diagnostic, "error": "timeout", "exit_code": 124}
     finally:
-        if process.returncode is None:
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                await asyncio.wait_for(process.wait(), timeout=2)
-            except asyncio.TimeoutError:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                await process.wait()
+        group_stopped = await _terminate_process_group(process)
         for task in tasks:
             if not task.done():
                 task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+    # Never report success when descendants may still be running.
+    if not group_stopped:
+        result = {"diagnostic": diagnostic, "error": "worker termination unverified",
+                  "exit_code": 126}
     # Send a receipt only after any overflowed/timed-out worker has stopped.
     if not STOP.exists():
         await ws.send(json.dumps({"type": "result", "id": request_id, "result": result}))
