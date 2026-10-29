@@ -14,6 +14,18 @@ STATES = frozenset({"queued", "running", "succeeded", "failed", "cancelled"})
 MAX_OUTPUT = 8192
 
 
+def _failure_receipt(error_code: str) -> str:
+    """Stable, secret-safe receipt for controller-side expiry without worker output."""
+    return json.dumps({
+        "receipt_version": 2,
+        "exit_code": None,
+        "stdout": "",
+        "stderr": "",
+        "output_suppressed": False,
+        "error": error_code,
+    })
+
+
 class TaskQueue:
     def __init__(self, database: str | Path):
         self.database = str(database)
@@ -48,10 +60,10 @@ class TaskQueue:
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             db.execute("UPDATE tasks SET state='failed', result=? WHERE state IN ('queued','running') AND deadline<=?",
-                       (json.dumps({"error": "deadline exceeded"}), now))
+                       (_failure_receipt("deadline_exceeded"), now))
             # Fail closed: expired running leases become failed, never replayed automatically.
             db.execute("UPDATE tasks SET state='failed', result=? WHERE state='running' AND lease_until<=?",
-                       (json.dumps({"error": "lease expired; execution outcome unknown"}), now))
+                       (_failure_receipt("lease_expired"), now))
             row = db.execute("SELECT id,diagnostic,deadline FROM tasks WHERE state='queued' ORDER BY created,id LIMIT 1").fetchone()
             if row:
                 db.execute("UPDATE tasks SET state='running', attempt=attempt+1, lease_until=? WHERE id=?",
