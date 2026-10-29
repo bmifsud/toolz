@@ -62,7 +62,7 @@ class TaskControllerTests(unittest.TestCase):
         import json
         receipt = json.loads(self.queue.get(task_id)["result"])
         self.assertEqual(self.queue.get(task_id)["state"], "failed")
-        self.assertEqual(receipt["error"], reason)
+        self.assertEqual(receipt["error"], "worker_termination_unverified")
         self.assertNotIn("secret", receipt)
 
     def test_error_reason_is_bounded(self):
@@ -72,7 +72,68 @@ class TaskControllerTests(unittest.TestCase):
         self.assertTrue(self.queue.complete(
             task_id, {"exit_code": 126, "error": "x" * 5000}, success=False))
         receipt = json.loads(self.queue.get(task_id)["result"])
-        self.assertEqual(receipt["error"], "x" * 256)
+        self.assertEqual(receipt["error"], "worker_error")
+        self.assertNotIn("x" * 32, self.queue.get(task_id)["result"])
+
+    def test_raw_worker_output_and_canary_errors_never_reach_sqlite(self):
+        import json
+        import sqlite3
+        canary = "TOKEN_SYNTHETIC_🚫_1234567890"
+        task_id = self.queue.submit("ssh-status")
+        self.queue.claim()
+        self.assertTrue(self.queue.complete(task_id, {
+            "exit_code": 17, "stdout": "Authorization: Bearer " + canary,
+            "stderr": "passphrase=" + canary, "error": "failure " + canary,
+            "untrusted_extra": canary,
+        }, success=False))
+        record = self.queue.get(task_id)
+        receipt = json.loads(record["result"])
+        self.assertEqual(record["state"], "failed")
+        self.assertEqual(receipt["receipt_version"], 2)
+        self.assertEqual(receipt["exit_code"], 17)
+        self.assertEqual(receipt["error"], "worker_error")
+        self.assertEqual(receipt["stdout"], "")
+        self.assertEqual(receipt["stderr"], "")
+        self.assertTrue(receipt["output_suppressed"])
+        self.assertNotIn(canary, record["result"])
+        self.assertNotIn(canary.encode("utf-8"), (Path(self.tmp.name) / "tasks.sqlite").read_bytes())
+
+    def test_success_does_not_persist_unstructured_output(self):
+        import json
+        canary = "SYNTHETIC_PRIVATE_VALUE"
+        task_id = self.queue.submit("git-branch")
+        self.queue.claim()
+        self.assertTrue(self.queue.complete(task_id, {
+            "exit_code": 0, "stdout": canary, "stderr": canary,
+        }, success=True))
+        receipt = json.loads(self.queue.get(task_id)["result"])
+        self.assertEqual(self.queue.get(task_id)["state"], "succeeded")
+        self.assertTrue(receipt["output_suppressed"])
+        self.assertNotIn(canary, self.queue.get(task_id)["result"])
+
+    def test_untrusted_exit_code_cannot_inject_receipt(self):
+        import json
+        canary = "SYNTHETIC_EXIT_SECRET"
+        task_id = self.queue.submit("tier1-tests")
+        self.queue.claim()
+        self.assertTrue(self.queue.complete(task_id, {
+            "exit_code": canary, "error": "unknown " + canary,
+        }, success=False))
+        receipt = json.loads(self.queue.get(task_id)["result"])
+        self.assertIsNone(receipt["exit_code"])
+        self.assertEqual(receipt["error"], "invalid_exit_code")
+        self.assertNotIn(canary, self.queue.get(task_id)["result"])
+
+    def test_known_error_code_preserved_without_worker_text(self):
+        import json
+        task_id = self.queue.submit("git-branch")
+        self.queue.claim()
+        self.assertTrue(self.queue.complete(task_id, {
+            "exit_code": 0, "error": "worker termination unverified",
+        }, success=False))
+        receipt = json.loads(self.queue.get(task_id)["result"])
+        self.assertEqual(receipt["error"], "worker_termination_unverified")
+        self.assertEqual(self.queue.get(task_id)["state"], "failed")
 
     def test_cancel_rejects_late_completion(self):
         task_id = self.queue.submit("git-branch")
