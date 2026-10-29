@@ -141,6 +141,19 @@ class OrphanProcessGroupTests(unittest.IsolatedAsyncioTestCase):
                         except ProcessLookupError:
                             pass
 
+    async def test_clean_exit_without_descendants_reports_success(self):
+        """Positive control: a clean allowlisted command must yield a success receipt."""
+        socket = Socket()
+        with patch.dict(self.device.COMMANDS, {
+            "git-branch": [sys.executable, "-c", "print('clean-exit')"]
+        }):
+            await self.device.run_diagnostic(socket, "clean1234", "git-branch")
+        self.assertEqual(len(socket.messages), 1)
+        receipt = socket.messages[0]["result"]
+        self.assertEqual(receipt["exit_code"], 0, receipt)
+        self.assertEqual(receipt["stdout"].strip(), "clean-exit")
+        self.assertNotIn("error", receipt)
+
     async def test_exited_leader_with_closed_pipes(self):
         await self.exercise("closed")
 
