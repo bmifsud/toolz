@@ -64,6 +64,28 @@ class CancelProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(m.get("type") == "cancel_ack" for m in device.sent))
         self.assertNotIn(request_id, self.relay.pending)
 
+    async def test_failed_cancel_delivery_never_claims_worker_stopped(self):
+        request_id = "requestfail01"
+        controller = Socket("controller", self.controller_token, [
+            json.dumps({"type": "cancel", "id": request_id})
+        ])
+
+        class DisconnectedDevice:
+            async def send(self, raw):
+                raise OSError("device unavailable")
+
+        timer = asyncio.create_task(asyncio.sleep(60))
+        self.relay.pending[request_id] = (controller, timer)
+        self.relay.device = DisconnectedDevice()
+        try:
+            await self.relay.handler(controller)
+            self.assertEqual(controller.sent[-1]["message"],
+                             "cancellation attempted; worker termination unverified")
+            self.assertNotIn(request_id, self.relay.pending)
+        finally:
+            timer.cancel()
+            self.relay.device = None
+
     async def test_other_controller_cannot_cancel_request(self):
         owner = Socket("controller", self.controller_token)
         intruder = Socket("controller", self.controller_token, [
