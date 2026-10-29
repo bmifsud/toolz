@@ -142,11 +142,16 @@ class TaskQueue:
             return cursor.rowcount == 1
 
     def cancel(self, task_id: str) -> bool:
-        # Cancelling a running task prevents result acceptance but does NOT stop its process.
+        # Reconcile expiry before cancellation, so an already-expired task
+        # cannot be reported as cancelled merely because claim/get was idle.
+        # Cancellation prevents receipt acceptance; it does NOT stop a worker.
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._reconcile_expired(db, time.time(), task_id)
             cursor = db.execute(
                 "UPDATE tasks SET state='cancelled',lease_until=NULL WHERE id=? AND state IN ('queued','running')",
                 (task_id,))
+            db.execute("COMMIT")
             return cursor.rowcount == 1
 
     def get(self, task_id: str):
