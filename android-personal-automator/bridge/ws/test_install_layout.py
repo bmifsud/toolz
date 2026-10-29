@@ -21,6 +21,8 @@ class ListenerInstallLayoutTests(unittest.TestCase):
     def test_documented_copy_includes_replay_guard(self):
         instructions = README.read_text(encoding="utf-8")
         self.assertIn("for name in device.py replay_store.py requirements.txt; do", instructions)
+        self.assertIn('git fetch --no-tags origin "$REVIEWED_BRIDGE_REF"', instructions)
+        self.assertIn('git rev-parse FETCH_HEAD', instructions)
         self.assertIn('"$HOME/toolz-ws-bridge/replay_store.py"', instructions)
         self.assertIn('"$HOME/readonly_runner.py"', instructions)
 
