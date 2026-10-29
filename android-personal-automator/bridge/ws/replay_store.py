@@ -2,7 +2,11 @@
 
 A request ID is committed before its allowlisted command starts. Each SQLite
 connection binds to an O_NOFOLLOW-verified file descriptor, preventing a path
-swap after initialization from redirecting replay records. IDs are never
+swap after initialization from redirecting replay records. File identities are
+pinned for this ReplayStore instance's lifetime, rejecting same-owner regular-
+file replacement while it runs. A same-UID attacker replacing state *before*
+process startup cannot be detected without an independent trusted anchor.
+IDs are never
 automatically pruned: without a signed freshness window, pruning could permit
 replay after a restart. The bounded store refuses new work when full.
 """
@@ -33,11 +37,15 @@ class ReplayStore:
         directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             os.fchmod(directory_fd, 0o700)
+            directory_info = os.fstat(directory_fd)
+            self._directory_identity = (directory_info.st_dev, directory_info.st_ino)
             fd = os.open(self.path.name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
                          0o600, dir_fd=directory_fd)
             try:
                 self._check_file(fd)
                 os.fchmod(fd, 0o600)
+                file_info = os.fstat(fd)
+                self._file_identity = (file_info.st_dev, file_info.st_ino)
             finally:
                 os.close(fd)
         finally:
@@ -61,13 +69,17 @@ class ReplayStore:
         directory_fd = os.open(self.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
             directory_info = os.fstat(directory_fd)
-            if (directory_info.st_uid != os.getuid() or
+            if ((directory_info.st_dev, directory_info.st_ino) != self._directory_identity or
+                    directory_info.st_uid != os.getuid() or
                     directory_info.st_mode & 0o077):
                 raise OSError("replay directory permissions are not private")
             fd = os.open(self.path.name, os.O_RDWR | os.O_NOFOLLOW, dir_fd=directory_fd)
             try:
                 self._check_file(fd)
-                if os.fstat(fd).st_mode & 0o077:
+                file_info = os.fstat(fd)
+                if (file_info.st_dev, file_info.st_ino) != self._file_identity:
+                    raise OSError("replay database identity changed since initialization")
+                if file_info.st_mode & 0o077:
                     raise OSError("replay database permissions are not private")
                 with closing(sqlite3.connect(f"/proc/self/fd/{fd}", timeout=2,
                                              isolation_level=None)) as db:
