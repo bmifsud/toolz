@@ -9,6 +9,7 @@ on:
 jobs:
   bridge-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -17,12 +18,15 @@ jobs:
         with:
           python-version: '3.13'
       - name: Run bridge unit tests
-        run: python -m unittest discover -s android-personal-automator/bridge -p 'test_*.py' -v
+        timeout-minutes: 5
+        run: python -u -m unittest discover -s android-personal-automator/bridge -p 'test_*.py' -v
       - name: Validate Termux supervisor shell syntax
         run: bash -n android-personal-automator/bridge/live_update_termux.sh
       - name: Validate WebSocket transport syntax
         run: python -m py_compile android-personal-automator/bridge/ws/relay.py android-personal-automator/bridge/ws/device.py
+      - name: Install WebSocket test dependencies
+        timeout-minutes: 5
+        run: python -m pip install -r android-personal-automator/bridge/ws/requirements.txt
       - name: Run WebSocket relay tests
-        run: |
-          python -m pip install -r android-personal-automator/bridge/ws/requirements.txt
-          python -m unittest discover -s android-personal-automator/bridge/ws -p 'test_*.py' -v
+        timeout-minutes: 10
+        run: python -u -m unittest discover -s android-personal-automator/bridge/ws -p 'test_*.py' -v
