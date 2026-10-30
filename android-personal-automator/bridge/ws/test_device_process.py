@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +20,17 @@ class DeviceProcessTests(unittest.IsolatedAsyncioTestCase):
         }):
             import device
             self.device = importlib.reload(device)
+        # The production listener requires a designated Git checkout.
+        # Create a disposable fixture rather than weakening that fail-closed check.
+        self.checkout_home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.checkout_home.cleanup)
+        checkout = Path(self.checkout_home.name) / "toolz-tier1-test"
+        checkout.mkdir()
+        (checkout / ".git").mkdir()
+        home_patch = patch.object(self.device.Path, "home",
+                                  return_value=Path(self.checkout_home.name))
+        home_patch.start()
+        self.addCleanup(home_patch.stop)
 
     async def test_successful_allowlisted_diagnostic(self):
         class Socket:
