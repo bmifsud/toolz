@@ -58,6 +58,17 @@ class OrphanProcessGroupTests(unittest.IsolatedAsyncioTestCase):
         }):
             import device
             self.device = importlib.reload(device)
+        # The production listener requires a designated Git checkout.
+        # Create a disposable fixture rather than weakening that fail-closed check.
+        self.checkout_home = tempfile.TemporaryDirectory()
+        self.addCleanup(self.checkout_home.cleanup)
+        checkout = Path(self.checkout_home.name) / "toolz-tier1-test"
+        checkout.mkdir()
+        (checkout / ".git").mkdir()
+        home_patch = patch.object(self.device.Path, "home",
+                                  return_value=Path(self.checkout_home.name))
+        home_patch.start()
+        self.addCleanup(home_patch.stop)
 
     async def exercise(self, mode, cancel=False):
         original_create = asyncio.create_subprocess_exec
