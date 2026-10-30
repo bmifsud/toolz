@@ -30,6 +30,14 @@ class BoundedOutputTests(unittest.IsolatedAsyncioTestCase):
             self.device = importlib.reload(device)
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
+        # Keep subprocess tests independent of a real user's checkout.
+        checkout = Path(self.directory.name) / "toolz-tier1-test"
+        checkout.mkdir()
+        (checkout / ".git").mkdir()
+        home_patch = patch.object(self.device.Path, "home",
+                                  return_value=Path(self.directory.name))
+        home_patch.start()
+        self.addCleanup(home_patch.stop)
         self.stop_patch = patch.object(
             self.device, "STOP", Path(self.directory.name) / "STOP")
         self.stop_patch.start()
