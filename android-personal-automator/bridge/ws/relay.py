@@ -21,7 +21,7 @@ if len(DEVICE_TOKEN) < 32 or len(CONTROLLER_TOKEN) < 32 or DEVICE_TOKEN == CONTR
 device = None
 MAX_PENDING = 16
 MAX_MESSAGE = 8192
-ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests", "ssh-status"})
+ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "ssh-status"})
 REQUEST_TIMEOUT = 360
 
 async def expire_request(request_id, controller):
