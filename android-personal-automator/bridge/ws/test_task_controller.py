@@ -238,6 +238,37 @@ class TaskControllerTests(unittest.TestCase):
         self.assertEqual(record["state"], "failed")
         self.assertEqual(json.loads(record["result"])["error"], "deadline_exceeded")
 
+    def test_late_completion_reconciles_expired_lease_without_status_poll(self):
+        import json
+        import sqlite3
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=120)
+        self.queue.claim(lease_seconds=1)
+        created = self.queue.get(task_id)["created"]
+        with patch("task_controller.time.time", return_value=created + 2):
+            self.assertFalse(self.queue.complete(task_id, {"exit_code": 0}, success=True))
+        # Read raw SQLite, not queue.get(): the latter also reconciles expiry.
+        with sqlite3.connect(self.queue.database) as db:
+            state, result = db.execute(
+                "SELECT state,result FROM tasks WHERE id=?", (task_id,)).fetchone()
+        self.assertEqual(state, "failed")
+        self.assertEqual(json.loads(result)["error"], "lease_expired")
+
+    def test_late_completion_reconciles_deadline_before_lease(self):
+        import json
+        import sqlite3
+        from unittest.mock import patch
+        task_id = self.queue.submit("git-branch", timeout=2)
+        self.queue.claim(lease_seconds=1)
+        deadline = self.queue.get(task_id)["deadline"]
+        with patch("task_controller.time.time", return_value=deadline + 1):
+            self.assertFalse(self.queue.complete(task_id, {"exit_code": 0}, success=True))
+        with sqlite3.connect(self.queue.database) as db:
+            state, result = db.execute(
+                "SELECT state,result FROM tasks WHERE id=?", (task_id,)).fetchone()
+        self.assertEqual(state, "failed")
+        self.assertEqual(json.loads(result)["error"], "deadline_exceeded")
+
     def test_late_cancel_cannot_override_expired_queued_deadline(self):
         import json
         from unittest.mock import patch
