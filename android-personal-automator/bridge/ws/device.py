@@ -13,7 +13,7 @@ from readonly_runner import COMMANDS
 from replay_store import ReplayStore
 
 # Remote diagnostics are intentionally read-only; git_sync_pr.py is local-only.
-ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests", "ssh-status"})
+ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "ssh-status"})
 
 URL = os.environ["BRIDGE_WS_URL"].rstrip("/")
 TOKEN = os.environ["BRIDGE_DEVICE_TOKEN"]
