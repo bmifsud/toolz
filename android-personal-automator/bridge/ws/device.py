@@ -93,12 +93,14 @@ async def run_diagnostic(ws, request_id, diagnostic):
     if diagnostic not in ALLOWED_DIAGNOSTICS:
         raise ValueError("diagnostic not remotely allowlisted")
     command = COMMANDS[diagnostic]
+    # A listener restarted by a supervisor may inherit any working directory.
+    # Never let git-branch silently inspect that unrelated repository.
     cwd = None
-    if diagnostic == "tier1-tests":
+    if diagnostic == "git-branch":
         checkout = Path.home() / "toolz-tier1-test"
-        if not (checkout / "backup/tests/test_tier1.py").is_file():
+        if not checkout.is_dir() or not (checkout / ".git").exists():
             await ws.send(json.dumps({"type": "result", "id": request_id,
-                "result": {"diagnostic": diagnostic, "error": "test checkout missing", "exit_code": 2}}))
+                "result": {"diagnostic": diagnostic, "error": "diagnostic checkout missing", "exit_code": 2}}))
             return
         cwd = str(checkout)
     process = await asyncio.create_subprocess_exec(
