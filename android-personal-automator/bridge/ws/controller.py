@@ -10,7 +10,7 @@ from websockets.exceptions import ConnectionClosed
 
 URL = os.environ.get("BRIDGE_WS_URL", "wss://toolz-termux-ws-relay.onrender.com").rstrip("/")
 TOKEN = os.environ.get("BRIDGE_CONTROLLER_TOKEN", "")
-ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests", "ssh-status"})
+ALLOWED_DIAGNOSTICS = frozenset({"git-branch", "ssh-status"})
 
 async def main():
     if not URL.startswith("wss://") or len(TOKEN) < 32:
