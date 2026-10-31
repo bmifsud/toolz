@@ -6,22 +6,32 @@ on:
   pull_request:
     paths:
       - '.github/workflows/android-emulator-readiness.yml'
+      - 'docs/emulator-readiness.md'
+      - '.github/scripts/check-emulator-readiness.sh'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   emulator-boot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - name: Host environment
+      - name: Record host capability and initial status
+        shell: bash
         run: |
-          uname -a
-          test -e /dev/kvm && ls -l /dev/kvm || echo 'KVM not available'
-          df -h .
-          free -h
+          mkdir -p emulator-receipts
+          echo 'NOT_RUN: readiness only; gateway end-to-end test not run' > emulator-receipts/result.txt
+          {
+            uname -sm
+            cat /etc/os-release
+            test -e /dev/kvm && ls -l /dev/kvm || echo 'KVM not available'
+            test -r /dev/kvm && test -w /dev/kvm && echo 'KVM readable/writable' || echo 'KVM access unavailable'
+            df -h .
+            free -h
+          } > emulator-receipts/host-capability.txt
       - name: Boot emulator and verify ADB
+        id: boot
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -30,22 +40,56 @@ jobs:
           profile: pixel_2
           disable-animations: false
           emulator-boot-timeout: 900
-          script: |
-            set -eu
-            adb wait-for-device
-            test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
-            adb shell getprop ro.build.version.release
-            adb shell getprop ro.product.cpu.abi
-            adb devices -l
-            mkdir -p emulator-receipts
-            adb shell getprop > emulator-receipts/device-properties.txt
-            adb devices -l > emulator-receipts/adb-devices.txt
-            echo "PASS: emulator booted and ADB connected" | tee emulator-receipts/result.txt
+          emulator-port: 5554
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+            > '${{ runner.temp }}/toolz-emulator-console.log' 2>&1
+          # The action executes each script line independently; invoke one file.
+          script: bash .github/scripts/check-emulator-readiness.sh
+      - name: Collect bounded readiness evidence
+        if: always()
+        shell: bash
+        env:
+          BOOT_OUTCOME: ${{ steps.boot.outcome }}
+        run: |
+          mkdir -p emulator-receipts
+          {
+            timeout 10 adb version || true
+            timeout 10 "$ANDROID_HOME/emulator/emulator" -version || true
+            timeout 10 "$ANDROID_HOME/emulator/emulator" -accel-check || true
+          } > emulator-receipts/tool-versions.txt 2>&1
+          python3 - <<'PY_EVIDENCE'
+          import os
+          from pathlib import Path
+          import re
+
+          receipts = Path('emulator-receipts')
+          outcome = os.environ.get('BOOT_OUTCOME', 'unknown')
+          result = receipts / 'result.txt'
+          if outcome != 'success':
+              result.write_text(f'NOT_READY: emulator step {outcome}; readiness only; gateway end-to-end test not run\n')
+          source = Path(os.environ['RUNNER_TEMP']) / 'toolz-emulator-console.log'
+          if source.is_file():
+              with source.open('rb') as stream:
+                  stream.seek(0, 2)
+                  size = stream.tell()
+                  stream.seek(max(0, size - 65536))
+                  log = stream.read(65536).decode('utf-8', errors='replace')
+              log = re.sub(r'(?i)(bearer\s+)[^\s]+', r'\1[REDACTED]', log)
+              log = re.sub(r'(?i)((?:token|password|secret)\s*[=:]\s*)[^\s]+', r'\1[REDACTED]', log)
+              (receipts / 'emulator-console-tail.txt').write_text(log)
+          else:
+              (receipts / 'emulator-console-tail.txt').write_text('Emulator console unavailable: launch may not have been reached.\n')
+          # Upload only bounded text from this disposable, credential-free AVD.
+          for path in receipts.glob('*.txt'):
+              content = path.read_bytes()
+              path.write_bytes(content[:65536])
+          PY_EVIDENCE
       - name: Save readiness receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: emulator-readiness
           path: emulator-receipts/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
