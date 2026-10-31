@@ -2,35 +2,33 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Detect legacy launcher component
-        id: launcher
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+      - name: Install static-test runner
+        run: python -m pip install pytest==8.3.5
+      - name: Run routing and receipt tests
+        run: python -m unittest discover -s android-personal-automator/bridge/tests -p 'test_*.py' -v
+      - name: Run local proposal bridge and supervisor fixtures
+        run: python -m unittest discover -s android-personal-automator/bridge -p 'test_*.py' -v
+      - name: Run device-helper fixtures
+        run: python -m unittest discover -s android-personal-automator/device-tests -p 'test_*.py' -v
+      - name: Run pytest static setup checks
+        run: python -m pytest android-personal-automator/bridge/test_*static.py -q
+      - name: Record scope
         shell: bash
         run: |
-          if [[ -d scripts ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "Legacy tmux suite not applicable: scripts/ was removed from this repository." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Ensure tmux is installed
-        if: steps.launcher.outputs.present == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tmux
-
-      - name: Run automated test suite
-        if: steps.launcher.outputs.present == 'true'
-        run: |
-          bash tests/test-launch-ai-tmux.sh
+          echo 'Maintained offline fixtures and static checks ran. Android instrumentation, live Termux/Debian/Cline, cloud backups and physical-device acceptance are separate gates.' >> "$GITHUB_STEP_SUMMARY"
