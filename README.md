@@ -52,3 +52,8 @@ To run backup tests specifically using pytest:
 ```bash
 pytest backup/tests/
 ```
+
+## Repository documentation
+
+- [Current architecture and integration boundaries](docs/architecture.md)
+- [Installation prerequisites and verification map](docs/verification.md)
