@@ -65,3 +65,8 @@ The existing GitHub issue worker provides a **read-only, polling-based** connect
 - **Existing services:** The original Android bridge and Tier-1/Tier-2 backup automation are separate and should remain unchanged.
 
 **Verified:** The GitHub issue worker executed `git branch --show-current` on the tablet and returned exit code 0. **Not yet verified:** WSS authentication, relay health, tablet connection, or live round-trip.
+
+## Repository documentation
+
+- [Current architecture and integration boundaries](docs/architecture.md)
+- [Installation prerequisites and verification map](docs/verification.md)
