@@ -9,7 +9,7 @@ description: Safe, evidence-driven collaboration for bmifsud/toolz, Termux, Andr
 Keep independent Toolz workstreams progressing with explicit evidence, without disrupting the Android tablet or backups. This repository skill is guidance for coding agents that load it; it is not a live connection, a ChatGPT memory store, or permission to execute arbitrary commands.
 
 ## Visibility
-For each meaningful change, publish **STARTED / WORKING / VERIFIED (PASS, FAIL, BLOCKED) / FINISHED / NEXT** with links to relevant commits, PRs, CI runs or redacted receipts. Distinguish a passing mocked test from an emulator run and from a physical-device test. Do not claim background work is continuous when it runs on a schedule. If no safe work remains, report why.
+For each meaningful change, publish **STARTED / WORKING / VERIFIED (PASS, FAIL, BLOCKED) / FINISHED / NEXT** with links to relevant commits, PRs, CI runs or redacted receipts. Distinguish a passing mocked test from an emulator run and from a physical-device test. **FINISHED** requires the change merged into `main`, all applicable required checks passed, post-merge verification recorded, and the associated issue closed; otherwise report **VERIFIED** or **BLOCKED** rather than FINISHED. Do not claim background work is continuous when it runs on a schedule. If no safe work remains, report why.
 
 ## Independent workstreams
 - **Termux relay/security:** PR #42, issue #41. Verify authentication before WebSocket accept; relay health checks or handshake logs alone never prove an authenticated device session.
