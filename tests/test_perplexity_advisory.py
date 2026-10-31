@@ -1,5 +1,4 @@
 import importlib.util
-import io
 import json
 import pathlib
 import unittest
@@ -38,8 +37,9 @@ class PerplexityTests(unittest.TestCase):
         self.assertEqual(payload["model"], "sonar")
         self.assertEqual(payload["messages"][1]["content"], "diff")
         self.assertEqual(captured["timeout"], 30)
-    def test_docs_mode(self):
-        self.assertEqual(module.request("docs", "source", "test", lambda req, timeout: FakeResponse()), "Finding: test")
+    def test_docs_mode_disallowed(self):
+        with self.assertRaises(ValueError):
+            module.request("docs", "source", "test", lambda req, timeout: FakeResponse())
 
 if __name__ == "__main__":
     unittest.main()
