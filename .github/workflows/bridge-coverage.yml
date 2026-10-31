@@ -1,0 +1,60 @@
+name: Bridge routing coverage
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android-personal-automator/bridge/request_router.py'
+      - 'android-personal-automator/bridge/routing_adapter.py'
+      - 'android-personal-automator/bridge/routing_receipts.py'
+      - 'android-personal-automator/bridge/debian_diagnostics.py'
+      - 'android-personal-automator/bridge/tests/**'
+      - 'coverage.bridge.ini'
+      - '.github/workflows/bridge-coverage.yml'
+      - 'docs/bridge-coverage.md'
+  push:
+    branches: [main]
+    paths:
+      - 'android-personal-automator/bridge/request_router.py'
+      - 'android-personal-automator/bridge/routing_adapter.py'
+      - 'android-personal-automator/bridge/routing_receipts.py'
+      - 'android-personal-automator/bridge/debian_diagnostics.py'
+      - 'android-personal-automator/bridge/tests/**'
+      - 'coverage.bridge.ini'
+      - '.github/workflows/bridge-coverage.yml'
+      - 'docs/bridge-coverage.md'
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.14'
+      - name: Install coverage tool
+        run: python -m pip install coverage==7.6.12
+      - name: Run offline routing tests with branch coverage
+        run: python -m coverage run --rcfile=coverage.bridge.ini -m unittest discover -s android-personal-automator/bridge/tests -p 'test_*.py' -v
+      - name: Write coverage reports
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p coverage-artifacts
+          python -m coverage report --rcfile=coverage.bridge.ini | tee coverage-artifacts/coverage.txt
+          python -m coverage xml --rcfile=coverage.bridge.ini
+          python -m coverage json --rcfile=coverage.bridge.ini
+          python --version > coverage-artifacts/environment.txt
+          python -m coverage --version >> coverage-artifacts/environment.txt
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-routing-coverage
+          path: coverage-artifacts/
+          if-no-files-found: error
+          retention-days: 14

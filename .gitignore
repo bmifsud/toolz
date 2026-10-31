@@ -1,0 +1,7 @@
+# Local coverage reports and Python test caches.
+.coverage
+.coverage.*
+coverage-artifacts/
+.venv-coverage/
+__pycache__/
+*.py[cod]
