@@ -34,10 +34,15 @@ def test_restore_refuses_existing_rootfs(setup):
  archive=next(setup[2].glob('*.gpg'))
  assert invoke(setup,'--restore',str(archive)).returncode!=0
 
-def test_preflight_missing_tier1(setup):
+def test_preflight_missing_tier1(setup, tmp_path):
+ # Isolate the preflight script so neither repository nor HOME has a Tier-1 launcher.
+ import shutil
  d,h,s=setup
- p=subprocess.run(['bash',str(BASE/'pre_snapshot_clean.sh')],env=d,capture_output=True,text=True)
+ isolated=tmp_path/'isolated-preflight';isolated.mkdir()
+ shutil.copy(BASE/'pre_snapshot_clean.sh', isolated/'pre_snapshot_clean.sh')
+ p=subprocess.run(['bash',str(isolated/'pre_snapshot_clean.sh')],env=d,capture_output=True,text=True)
  assert p.returncode!=0
+ assert 'Tier-1 backup script missing' in p.stderr
 
 def test_roundtrip_restore_into_clean_home(setup):
  d,h,s=setup

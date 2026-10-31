@@ -88,7 +88,17 @@ def test_wrong_password_fails_restore(env):
     assert not Path(env[0]['ROOTFS_DIR']).exists()
 
 def test_preflight_requires_tier1(env):
-    assert run(env,'pre_snapshot_clean.sh').returncode!=0
+    # A failed Tier-1 upload must block Tier-2 preflight.
+    # Supply a valid isolated DB so preflight reaches the rclone remote check.
+    import sqlite3
+    db = env[1] / 'omniroute-test.sqlite'
+    with sqlite3.connect(db) as conn:
+        conn.execute('CREATE TABLE fixture (id INTEGER PRIMARY KEY)')
+    env[0]['OMNIROUTE_DEBIAN_DB'] = str(db)
+    env[2]('rclone', '[ "$1" = listremotes ] && exit 0\nexit 1')
+    result = run(env, 'pre_snapshot_clean.sh')
+    assert result.returncode != 0
+    assert 'remote not configured' in result.stderr
 
 def test_scheduler_rejects_bad_mode(env):
     assert run(env,'run_scheduled_backup.sh','bad').returncode==2
