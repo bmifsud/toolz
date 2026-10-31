@@ -131,6 +131,11 @@ for dir in .clinerules .memory .cline; do
   [ -d "$WORKSPACE_DIR/$dir" ] && cp -a "$WORKSPACE_DIR/$dir" "$WORK_DIR/workspace/"
 done
 
+# Opt-in only until a real encrypted backup and restore test pass.
+if [[ "${TIER1_INCLUDE_AI_CONFIG:-0}" == 1 ]]; then
+  bash "$(dirname "$0")/stage_tier1_ai_config.sh" "$WORK_DIR"
+fi
+
 echo "[4/5] Compressing and encrypting archive (AES-256) to $ANDROID_OUT..."
 OUT_FILE="$ANDROID_OUT/cline_omniroute_backup_${TIMESTAMP}.tar.gz.gpg"
 if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
