@@ -135,10 +135,17 @@ class TaskQueue:
         receipt = json.dumps(receipt_fields)
         if len(receipt.encode()) > 2 * MAX_OUTPUT + 512:
             raise ValueError("receipt too large")
+        # An expired worker completion must persist the appropriate failure
+        # receipt even when neither claim() nor get() has run since expiry.
+        # Reconciliation and completion share one write transaction.
+        now = time.time()
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._reconcile_expired(db, now, task_id)
             cursor = db.execute(
                 "UPDATE tasks SET state=?,result=?,lease_until=NULL WHERE id=? AND state='running' AND deadline>? AND lease_until>?",
-                ("succeeded" if success else "failed", receipt, task_id, time.time(), time.time()))
+                ("succeeded" if success else "failed", receipt, task_id, now, now))
+            db.execute("COMMIT")
             return cursor.rowcount == 1
 
     def cancel(self, task_id: str) -> bool:
