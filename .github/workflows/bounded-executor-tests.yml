@@ -1,0 +1,38 @@
+name: Bounded Termux executor tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-personal-automator/bridge/bounded_executor.py'
+      - 'android-personal-automator/bridge/tests/test_bounded_executor.py'
+      - 'android-personal-automator/bridge/routing_receipts.py'
+      - 'android-personal-automator/bridge/tests/test_routing_receipts.py'
+      - 'android-personal-automator/bridge/tests/test_bridge_contract.py'
+      - '.github/workflows/bounded-executor-tests.yml'
+  pull_request:
+    paths:
+      - 'android-personal-automator/bridge/bounded_executor.py'
+      - 'android-personal-automator/bridge/tests/test_bounded_executor.py'
+      - '.github/workflows/bounded-executor-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run bounded executor regression tests
+        run: python -m unittest discover -s android-personal-automator/bridge/tests -p 'test_*executor.py' -v
+      - name: Run bridge integration contract tests
+        run: python -m unittest discover -s android-personal-automator/bridge/tests -p test_bridge_contract.py -v
+      - name: Run receipt regression tests
+        run: python -m unittest discover -s android-personal-automator/bridge/tests -p test_routing_receipts.py -v
+
