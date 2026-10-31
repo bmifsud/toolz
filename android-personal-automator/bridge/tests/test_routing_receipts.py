@@ -29,6 +29,44 @@ class ReceiptTests(unittest.TestCase):
     def test_unknown_diagnostic(self):
         with self.assertRaises(ValueError):
             self.check(diagnostic="shell")
+    def test_malformed_outer_payload_rejected(self):
+        for payload in (None, [], "receipt", 7, True):
+            with self.subTest(payload=payload), self.assertRaisesRegex(ValueError, "invalid receipt"):
+                verify_receipt(payload, expected_request_id="req_12345678",
+                               expected_diagnostic="tier1-tests")
+
+    def test_unicode_correlation_values_rejected(self):
+        for field in ("request_id", "diagnostic"):
+            for value in ("é", "req_\ud800"):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    self.check({**self.payload, field: value})
+        # Matching Unicode IDs were never accepted by the ASCII-only comparison.
+        with self.assertRaisesRegex(ValueError, "request ID mismatch"):
+            self.check({**self.payload, "request_id": "é"}, request_id="é")
+
+    def test_malformed_expected_correlation_rejected(self):
+        for value in (None, [], {}, 7, "é"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.check(request_id=value)
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.check(diagnostic=value)
+
+    def test_nonzero_exit_codes_preserved(self):
+        for code in (-1, 1, 255):
+            with self.subTest(code=code):
+                self.assertEqual(self.check({**self.payload, "exit_code": code}).exit_code, code)
+
+    def test_utf8_output_limit_is_combined_byte_count(self):
+        receipt = {**self.payload, "stdout": "é" * (module.MAX_OUTPUT // 2), "stderr": ""}
+        self.assertEqual(self.check(receipt).stdout, receipt["stdout"])
+        with self.assertRaisesRegex(ValueError, "output exceeds receipt limit"):
+            self.check({**receipt, "stderr": "x"})
+
+    def test_unencodable_output_rejected(self):
+        for field in ("stdout", "stderr"):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "invalid output"):
+                self.check({**self.payload, field: "\ud800"})
+
     def test_invalid_code(self):
         with self.assertRaises(ValueError):
             self.check({**self.payload, "exit_code": True})

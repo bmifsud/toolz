@@ -17,6 +17,14 @@ class VerifiedReceipt:
     stderr: str
     output_sha256: str
 
+def _matches_ascii(value: Any, expected: Any) -> bool:
+    # compare_digest's string form accepts ASCII only. Malformed remote values
+    # must fail validation rather than escape as TypeError.
+    return (isinstance(value, str) and isinstance(expected, str)
+            and value.isascii() and expected.isascii()
+            and hmac.compare_digest(value, expected))
+
+
 def verify_receipt(payload: Mapping[str, Any], *,
                    expected_request_id: str,
                    expected_diagnostic: str) -> VerifiedReceipt:
@@ -25,15 +33,15 @@ def verify_receipt(payload: Mapping[str, Any], *,
     This is NOT cryptographic proof of device origin; transport authentication and
     server-side request tracking must be enforced by the integrating bridge.
     """
-    if expected_diagnostic not in VALID_DIAGNOSTICS:
+    if not isinstance(expected_diagnostic, str) or expected_diagnostic not in VALID_DIAGNOSTICS:
         raise ValueError("diagnostic not allowlisted")
     if not isinstance(payload, dict):
         raise ValueError("invalid receipt")
     request_id = payload.get("request_id")
     diagnostic = payload.get("diagnostic")
-    if not isinstance(request_id, str) or not hmac.compare_digest(request_id, expected_request_id):
+    if not _matches_ascii(request_id, expected_request_id):
         raise ValueError("request ID mismatch")
-    if not isinstance(diagnostic, str) or not hmac.compare_digest(diagnostic, expected_diagnostic):
+    if not _matches_ascii(diagnostic, expected_diagnostic):
         raise ValueError("diagnostic mismatch")
     code = payload.get("exit_code")
     if type(code) is not int or not (-1 <= code <= 255):
@@ -41,7 +49,11 @@ def verify_receipt(payload: Mapping[str, Any], *,
     stdout, stderr = payload.get("stdout"), payload.get("stderr")
     if not isinstance(stdout, str) or not isinstance(stderr, str):
         raise ValueError("invalid output")
-    if len(stdout.encode("utf-8")) + len(stderr.encode("utf-8")) > MAX_OUTPUT:
+    try:
+        output_bytes = len(stdout.encode("utf-8")) + len(stderr.encode("utf-8"))
+    except UnicodeEncodeError:
+        raise ValueError("invalid output") from None
+    if output_bytes > MAX_OUTPUT:
         raise ValueError("output exceeds receipt limit")
     digest = hashlib.sha256(json.dumps(
         [request_id, diagnostic, code, stdout, stderr],
