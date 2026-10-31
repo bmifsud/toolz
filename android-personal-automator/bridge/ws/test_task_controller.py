@@ -27,6 +27,27 @@ class TaskControllerTests(unittest.TestCase):
         self.assertEqual(fresh.get(task_id)["state"], "succeeded")
         self.assertNotIn("secret", fresh.get(task_id)["result"])
 
+    def test_success_requires_verified_zero_exit_code(self):
+        task_id = self.queue.submit("git-branch")
+        self.queue.claim()
+        for result in ({"exit_code": 1}, {"exit_code": None},
+                       {"exit_code": False}, {"exit_code": "0"}, {}):
+            with self.subTest(result=result), self.assertRaises(ValueError):
+                self.queue.complete(task_id, result, success=True)
+            self.assertEqual(self.queue.get(task_id)["state"], "running")
+        with self.assertRaises(ValueError):
+            self.queue.complete(task_id, {"exit_code": 0}, success="false")
+        self.assertEqual(self.queue.get(task_id)["state"], "running")
+        # Nonzero exits must be persistable as failures.
+        self.assertTrue(self.queue.complete(task_id, {"exit_code": 1}, success=False))
+        self.assertEqual(self.queue.get(task_id)["state"], "failed")
+
+    def test_unverified_termination_fails_closed_even_with_zero_exit(self):
+        task_id = self.queue.submit("git-branch")
+        self.queue.claim()
+        self.assertTrue(self.queue.complete(task_id, {"exit_code": 0, "stderr": "termination unverified"}, success=False))
+        self.assertEqual(self.queue.get(task_id)["state"], "failed")
+
     def test_cancel_rejects_late_completion(self):
         task_id = self.queue.submit("git-branch")
         self.queue.claim()
