@@ -39,5 +39,23 @@ class ReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check({**self.payload, "stderr": None})
 
+    def test_non_mapping_rejected(self):
+        with self.assertRaises(ValueError):
+            self.check("invalid")
+    def test_invalid_code_boundaries(self):
+        for code in ("0", 256, -2, None):
+            with self.subTest(code=code), self.assertRaises(ValueError):
+                self.check({**self.payload, "exit_code": code})
+    def test_missing_request_id(self):
+        with self.assertRaises(ValueError):
+            self.check({k: v for k, v in self.payload.items() if k != "request_id"})
+    def test_utf8_byte_limit(self):
+        with self.assertRaises(ValueError):
+            self.check({**self.payload, "stdout": "é" * 8193})
+    def test_digest_changes_with_output(self):
+        first = self.check().output_sha256
+        second = self.check({**self.payload, "stdout": "13 passed"}).output_sha256
+        self.assertNotEqual(first, second)
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,3 @@
+# Controller compatibility gate
+
+The controller implementation is not present in this repository. The existing Termux controller's support for `--diagnostic` is **unverified**. The bounded executor now fails closed unless the invoking host explicitly supplies `controller_interface_verified=True` after independently verifying the installed controller supports `--diagnostic <allowlisted-name>`. This boolean is not authentication and must not be set based on model output or an untrusted request. The controller token, WSS endpoint, allowlist, and timeout remain mandatory. This is a temporary safety gate, not proof of a working ChatGPT-to-device integration. Do not enable in production without an actual controller compatibility test and authenticated device round-trip.
