@@ -153,6 +153,14 @@ class TaskControllerTests(unittest.TestCase):
         with patch("task_controller.time.time", return_value=self.queue.get(task_id)["deadline"] + 1):
             self.assertIsNone(self.queue.claim())
         self.assertEqual(self.queue.get(task_id)["state"], "failed")
+        import json
+        receipt = json.loads(self.queue.get(task_id)["result"])
+        self.assertEqual(receipt["receipt_version"], 2)
+        self.assertEqual(receipt["error"], "deadline_exceeded")
+        self.assertIsNone(receipt["exit_code"])
+        self.assertEqual(receipt["stdout"], "")
+        self.assertEqual(receipt["stderr"], "")
+        self.assertFalse(receipt["output_suppressed"])
 
 
     def test_expired_running_lease_rejects_completion(self):
@@ -171,6 +179,14 @@ class TaskControllerTests(unittest.TestCase):
             self.assertIsNone(restarted.claim())
         self.assertEqual(restarted.get(task_id)["state"], "failed")
         self.assertEqual(restarted.get(task_id)["attempt"], 1)
+        import json
+        receipt = json.loads(restarted.get(task_id)["result"])
+        self.assertEqual(receipt["receipt_version"], 2)
+        self.assertEqual(receipt["error"], "lease_expired")
+        self.assertIsNone(receipt["exit_code"])
+        self.assertEqual(receipt["stdout"], "")
+        self.assertEqual(receipt["stderr"], "")
+        self.assertFalse(receipt["output_suppressed"])
 
     def test_cancel_queued_task_never_claimed(self):
         task_id = self.queue.submit("git-branch")
