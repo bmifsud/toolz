@@ -69,13 +69,19 @@ class TaskQueue:
         # result may still have exit_code=0 (e.g. termination unverified).
         if success and (type(result.get("exit_code")) is not int or result["exit_code"] != 0):
             raise ValueError("successful receipt requires integer exit_code 0")
-        # Prevent unbounded receipts and accidental persistence of arbitrary response fields.
-        receipt = json.dumps({
+        # A zero exit code with an explicit worker error is not a verified success.
+        if success and result.get("error") is not None:
+            raise ValueError("successful receipt cannot contain a worker error")
+        # Retain bounded failure reasons for audit while excluding arbitrary fields.
+        receipt_fields = {
             "exit_code": result.get("exit_code"),
             "stdout": str(result.get("stdout", ""))[:MAX_OUTPUT],
             "stderr": str(result.get("stderr", ""))[:MAX_OUTPUT],
-        })
-        if len(receipt.encode()) > 2 * MAX_OUTPUT + 256:
+        }
+        if result.get("error") is not None:
+            receipt_fields["error"] = str(result["error"])[:256]
+        receipt = json.dumps(receipt_fields)
+        if len(receipt.encode()) > 2 * MAX_OUTPUT + 512:
             raise ValueError("receipt too large")
         with self._connect() as db:
             cursor = db.execute(

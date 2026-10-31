@@ -48,6 +48,32 @@ class TaskControllerTests(unittest.TestCase):
         self.assertTrue(self.queue.complete(task_id, {"exit_code": 0, "stderr": "termination unverified"}, success=False))
         self.assertEqual(self.queue.get(task_id)["state"], "failed")
 
+    def test_explicit_worker_error_cannot_be_recorded_as_success(self):
+        task_id = self.queue.submit("git-branch")
+        self.queue.claim()
+        for error in ("worker termination unverified", "", False):
+            with self.subTest(error=error), self.assertRaises(ValueError):
+                self.queue.complete(task_id, {"exit_code": 0, "error": error}, success=True)
+            self.assertEqual(self.queue.get(task_id)["state"], "running")
+        # Explicit failure is retained, including its bounded error reason.
+        reason = "worker termination unverified"
+        self.assertTrue(self.queue.complete(
+            task_id, {"exit_code": 0, "error": reason, "secret": "ignored"}, success=False))
+        import json
+        receipt = json.loads(self.queue.get(task_id)["result"])
+        self.assertEqual(self.queue.get(task_id)["state"], "failed")
+        self.assertEqual(receipt["error"], reason)
+        self.assertNotIn("secret", receipt)
+
+    def test_error_reason_is_bounded(self):
+        import json
+        task_id = self.queue.submit("git-branch")
+        self.queue.claim()
+        self.assertTrue(self.queue.complete(
+            task_id, {"exit_code": 126, "error": "x" * 5000}, success=False))
+        receipt = json.loads(self.queue.get(task_id)["result"])
+        self.assertEqual(receipt["error"], "x" * 256)
+
     def test_cancel_rejects_late_completion(self):
         task_id = self.queue.submit("git-branch")
         self.queue.claim()
