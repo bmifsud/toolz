@@ -1,25 +1,19 @@
-# Jules documentation maintainer — direct-to-main design
+# Perplexity documentation maintainer — design only
 
-Tracks #66; separate from the Jules/Codex cloud code-review workflow (#61). **Not yet connected or enabled.**
+Tracks #66. Replaces the proposed Jules documentation role with Perplexity. **Not connected or enabled.**
 
-## Policy
-Jules maintains both developer/internal and public/external documentation after verified code changes. Routine documentation-only updates should go **straight to `main` without PRs or review** once a supported integration, credentials, path validation and repository permissions are tested and approved.
+## Scope
+Generate and maintain public/external developer documentation and non-sensitive internal technical documentation based on verified code changes. In a public repository, all committed content is public: confidential internal runbooks, private device details, credentials and secrets must be stored privately.
 
-A public GitHub repository makes all committed documentation public: never put sensitive internal runbooks, tokens, host details or private user/device data there. Use a private repository for confidential internal documentation.
+## Proposed publishing flow
+1. After successful merge or manual dispatch, pin the exact `main` SHA and relevant changes.
+2. Request documentation suggestions through an authenticated Perplexity API integration using bounded, non-sensitive source context; verify citations and distinguish implemented features from proposals.
+3. Restrict edits to an explicit allowlist (e.g. `README.md` and approved `docs/**/*.md`), rejecting source code, workflows, settings, scripts, binaries, symlinks and path traversal.
+4. Check factual accuracy, Markdown links, secret exposure, and unsupported claims. Save redacted receipts with inputs, source SHA and checks.
+5. Only when a dedicated minimally privileged publisher has been verified and branch protection permits it, commit validated documentation directly to `main` without a PR. Never force push or bypass branch rules; abort on SHA drift.
+6. If any validation fails, open or update a tracking issue instead of publishing. Prevent recursive triggers.
 
-## Pipeline
-1. On successful merge or manual dispatch, capture the exact `main` SHA and changed-file manifest.
-2. Ask an authenticated Jules session to update relevant docs with source references and distinguish implemented behavior from proposed or unverified behavior.
-3. Validate proposed changes using a strict explicit allowlist (`README.md`, `docs/**/*.md`, and other individually approved Markdown files); reject any changes to source code, workflows, scripts, settings, secrets, archives, symlinks or unapproved paths.
-4. Check Markdown/link integrity, secrets and unsupported assertions; bound output and run time.
-5. If the change is docs-only and all gates pass, push a normal commit to `main` using a dedicated minimally privileged automation identity, only if branch rules allow it. Never force push or bypass protection. Abort/retry on main SHA drift.
-6. Publish an audit receipt with Jules session, source SHA, files, checks and resulting commit; prevent trigger loops.
-7. On failure, create or update a tracking issue instead of pushing.
+## Activation tests
+Allowlisted edit; blocked code/config edit; leak and private-data detection; outdated source SHA; concurrent writes; authentication/API outages; retries; and branch protection failures must all be tested.
 
-## Tests required before enabling
-- Allowlisted docs edit passes; source/config/workflow edit fails.
-- Secret, symlink/path traversal, private-data and unverified claim attempts fail.
-- Stale main SHA, concurrent edits, repeated trigger, Jules outage and authentication errors fail safely.
-- No review/PR required for valid documentation-only changes; existing code/security/device/backup verification gates remain intact.
-
-**Implementation note:** Confirm the supported Jules integration and GitHub permissions before wiring any publishing job. No speculative API calls, credentials or direct-to-main automation are included in this document.
+**Status:** This document is a proposal, not an active automation. A separate implementation with authenticated API integration, credentials and validation is required.
