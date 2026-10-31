@@ -1,5 +1,5 @@
 name: Independent PR review intake (scaffold)
-# Initial safe intake only: no Jules/Codex invocation, issue writes, or automatic fixes.
+# Read-only intake only: no Perplexity/Codex invocation, issue writes, or automatic fixes.
 on:
   workflow_dispatch:
     inputs:
@@ -28,7 +28,7 @@ jobs:
           mkdir -p receipts
           gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '{number,html_url,title,state,draft,base_sha:.base.sha,head_sha:.head.sha,head_repo:.head.repo.full_name}' > receipts/pr.json
           jq -e '.state == "open" and (.head_sha | test("^[0-9a-f]{40}$"))' receipts/pr.json >/dev/null
-          printf '%s\n' 'Intake only: external reviewer integrations and automatic issue/fix loop are NOT enabled.' > receipts/status.txt
+          printf '%s\n' 'Intake only: Perplexity/Codex reviewer integrations and automatic issue/fix loop are NOT enabled.' > receipts/status.txt
           cat receipts/status.txt
       - name: Upload immutable intake receipt
         uses: actions/upload-artifact@v4
