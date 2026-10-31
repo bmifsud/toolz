@@ -22,5 +22,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gnupg sqlite3 rclone
           python -m pip install pytest pytest-cov
-      - name: Shell syntax and isolated flow tests
-        run: bash backup/test_full_flow.sh
+      - name: Shell syntax and complete isolated backup suite
+        run: bash backup/test_full_flow.sh --junitxml=backup-results.xml
+      - name: Upload complete suite results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-test-results
+          path: backup-results.xml
+          if-no-files-found: warn
