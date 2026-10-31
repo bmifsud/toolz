@@ -373,15 +373,9 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
-        if (::savedStatus.isInitialized && !connectionBusy) {
-            val local = localRoute.isChecked
-            val address = endpoint.text.toString().trim()
-            val modelId = model.text.toString()
-            val savedTask = task.text.toString()
-            val replacement = token.text.toString()
-            token.text.clear()
-            storage.execute { runCatching { vault.save(local, address, modelId, savedTask, replacement) } }
-        }
+        // Only explicit Save/Send may persist credentials. An asynchronous stop-time
+        // save could re-create a connection after the user explicitly forgot it.
+        if (::token.isInitialized) token.text.clear()
         discardProposal()
         if (::proposal.isInitialized) proposal.text = "AI request and proposal cleared when app left foreground."
         DemoAccessibilityService.changed = null

@@ -4,6 +4,8 @@ import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Button
+import android.widget.TextView
 import android.widget.CheckBox
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -62,6 +64,78 @@ class ConnectionIntegrationTest {
         try { vault.useToken(false, "https://two.example/proposal") { true }; fail("Reused destination-bound token") }
         catch (_: IllegalStateException) { }
         assertNull(vault.settings(true))
+    }
+
+    @Test fun forgottenConnectionIsNotResavedWhenActivityStops() {
+        ConnectionVault(context).save(true, address, "auto", "Saved task text", fakeToken)
+        var lastStorage: java.util.concurrent.ExecutorService? = null
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            var restored = false
+            for (attempt in 0..100) {
+                scenario.onActivity { activity ->
+                    val fields = descendants(activity.window.decorView).filterIsInstance<EditText>()
+                    restored = fields.size == 4 &&
+                        fields[2].text.toString() == "Saved task text" && fields[2].isEnabled
+                }
+                if (restored) break
+                Thread.sleep(50)
+            }
+            assertTrue("Connection was not restored before Forget", restored)
+            scenario.onActivity { activity ->
+                descendants(activity.window.decorView).filterIsInstance<Button>()
+                    .first { it.text.toString() == "Forget saved connection and token" }
+                    .performClick()
+            }
+            var forgotten = false
+            for (attempt in 0..100) {
+                scenario.onActivity { activity ->
+                    val views = descendants(activity.window.decorView)
+                    forgotten = views.filterIsInstance<TextView>().any {
+                        it.text.toString() == "Saved connection and token forgotten."
+                    } && views.filterIsInstance<EditText>()[2].isEnabled
+                }
+                if (forgotten) break
+                Thread.sleep(50)
+            }
+            assertTrue("Forget action did not finish", forgotten)
+            assertNull(ConnectionVault(context).settings(true))
+            assertNull(ConnectionVault(context).settings(false))
+
+            // The old bug queued a write on onStop. A FIFO executor barrier
+            // observes that write deterministically instead of sleeping 500 ms.
+            scenario.onActivity { lastStorage = activityStorage(it) }
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            lastStorage!!.submit {}.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            assertNull("onStop recreated local settings", ConnectionVault(context).settings(true))
+            assertNull("onStop recreated bridge settings", ConnectionVault(context).settings(false))
+
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+            scenario.recreate()
+            scenario.onActivity { lastStorage = activityStorage(it) }
+            lastStorage!!.submit {}.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            scenario.onActivity { activity ->
+                val fields = descendants(activity.window.decorView).filterIsInstance<EditText>()
+                assertEquals("Forgotten task reappeared after recreation", "", fields[2].text.toString())
+                assertEquals("Forgotten token reappeared after recreation", "", fields[1].text.toString())
+            }
+            assertNull(ConnectionVault(context).settings(true))
+            assertNull(ConnectionVault(context).settings(false))
+        }
+        // onDestroy shuts down the Activity's storage executor. Wait for all
+        // queued writes before asserting that neither vault slot was revived.
+        assertTrue("Activity storage executor did not stop",
+            lastStorage!!.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS))
+        assertNull("Closing the Activity recreated local settings",
+            ConnectionVault(context).settings(true))
+        assertNull("Closing the Activity recreated bridge settings",
+            ConnectionVault(context).settings(false))
+    }
+
+    private fun activityStorage(activity: MainActivity): java.util.concurrent.ExecutorService {
+        val field = MainActivity::class.java.getDeclaredField("storage")
+        field.isAccessible = true
+        return field.get(activity) as java.util.concurrent.ExecutorService
     }
 
     @Test fun tamperedCiphertextFailsClosed() {
