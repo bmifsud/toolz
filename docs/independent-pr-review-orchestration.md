@@ -1,17 +1,22 @@
-# Independent PR review orchestration (initial scaffold)
+# Independent PR review orchestration (Perplexity + Codex design)
 
-Tracks #61. This is **not yet** a Jules or Codex cloud integration.
+Tracks #61. Replaces the proposed Jules review role with Perplexity. **External reviewer calls are not yet enabled.**
 
 ## Current behavior
-Manually dispatch `Independent PR review intake (scaffold)` with a numeric open PR number. It fetches immutable PR metadata and publishes a receipt containing head/base SHAs. Workflow permissions are read-only; no checkout of untrusted PR code, reviewer API calls, issue writes, fixes, deployments, merges or backup operations.
+The manually dispatched `Independent PR review intake (scaffold)` validates an open PR, captures immutable head/base SHAs and uploads a receipt. It does not execute untrusted PR code or contact external models.
 
-## Next implementation gates
-1. Verify officially supported authenticated integration methods for **Jules** and **Codex cloud**. Do not invent endpoints or grant secrets to untrusted fork PRs.
-2. Introduce separate bounded, least-privilege review jobs pinned to the same PR head SHA. Keep raw reviewer outputs as receipts; normalize severity, evidence, file/line, provenance and disagreement.
-3. Implement deterministic finding fingerprints and deduplicated GitHub issues; link to source review comment and head SHA. Ignore non-actionable feedback.
-4. Add a separate opt-in fixer that produces draft PRs on isolated branches. Enforce file-level concurrency, retry budgets, independent re-review and a human escalation path.
-5. Add integration tests for invalid PRs, API outages, rate limits, prompt injection, stale SHAs, duplicates, disagreement and attempted secret disclosure.
-6. Require human review before enabling any issue-write or code-write permissions. Never auto-merge high-risk changes or claim that CI/reviewer agreement substitutes for physical Android, relay authorization, or encrypted backup/restore verification.
+## Proposed review flow
+1. Collect the exact PR head SHA, diff and bounded context using read-only GitHub permissions.
+2. Run **Codex** and **Perplexity** as independent reviewers against the *same* immutable head SHA; validate supported APIs, credentials, costs and data handling before enabling either.
+3. Capture redacted receipts with provenance, severity, evidence, changed file/line, and disagreement. Treat PR content as untrusted; never execute reviewer-generated commands.
+4. Deduplicate actionable findings into tracked issues or review comments only after separate write-permission approval. Do not confuse AI feedback with a formally required human approval.
+5. Fix through separately authorized, isolated draft PRs; rerun CI and independent review. Disallow concurrent edits to the same branches and preserve the existing device and backup verification gates.
+6. Merge only after all CI, branch protection, required independent human reviews, and emulator/tablet/backup evidence applicable to the PR have passed. Never auto-merge high-risk changes merely on AI consensus.
 
-## Security notes
-The intake workflow runs only by explicit manual dispatch. It does not execute PR code. Future review jobs must treat diffs, issue bodies and comments as untrusted data. Credentials should remain in approved secrets and never appear in receipts. No production use is implied by a passing scaffold workflow.
+## Before activation
+- Validate API authentication and rate-limit, outage, timeout and spending controls.
+- Ensure secrets cannot be read by fork PRs or leaked into prompts, artifacts or logs.
+- Test stale SHAs, prompt injection, duplicate feedback, review disagreement and unauthorized write attempts.
+- Require a separate human-reviewed change to enable reviewer API calls or GitHub write actions.
+
+No Perplexity API key or functioning review integration is implied by this design.
