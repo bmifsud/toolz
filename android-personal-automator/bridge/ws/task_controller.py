@@ -72,14 +72,39 @@ class TaskQueue:
         # A zero exit code with an explicit worker error is not a verified success.
         if success and result.get("error") is not None:
             raise ValueError("successful receipt cannot contain a worker error")
-        # Retain bounded failure reasons for audit while excluding arbitrary fields.
-        receipt_fields = {
-            "exit_code": result.get("exit_code"),
-            "stdout": str(result.get("stdout", ""))[:MAX_OUTPUT],
-            "stderr": str(result.get("stderr", ""))[:MAX_OUTPUT],
+        # Receipt schema v2: never persist unstructured worker text. Bounded
+        # strings and regex substitutions are not sufficient secret controls.
+        # Only allowlisted, fixed error codes and verified numeric status survive.
+        raw_exit = result.get("exit_code")
+        exit_code = raw_exit if type(raw_exit) is int else None
+        known_errors = {
+            "worker termination unverified": "worker_termination_unverified",
+            "worker_termination_unverified": "worker_termination_unverified",
+            "deadline exceeded": "deadline_exceeded",
+            "deadline_exceeded": "deadline_exceeded",
+            "lease expired; execution outcome unknown": "lease_expired",
+            "lease_expired": "lease_expired",
+            "output limit exceeded": "output_limit_exceeded",
+            "output_limit_exceeded": "output_limit_exceeded",
         }
-        if result.get("error") is not None:
-            receipt_fields["error"] = str(result["error"])[:256]
+        raw_error = result.get("error")
+        error_code = known_errors.get(raw_error, "worker_error") if type(raw_error) is str else "worker_error"
+        receipt_fields = {
+            "receipt_version": 2,
+            "exit_code": exit_code,
+            # Deliberately omit stdout/stderr until each diagnostic has an
+            # explicit structured, schema-validated, secret-safe receipt.
+            "stdout": "",
+            "stderr": "",
+            "output_suppressed": bool(result.get("stdout") or result.get("stderr")),
+        }
+        if not success:
+            receipt_fields["error"] = (
+                "invalid_exit_code" if raw_exit is not None and exit_code is None
+                else error_code if raw_error is not None
+                else "command_failed" if exit_code is not None and exit_code != 0
+                else "execution_unverified"
+            )
         receipt = json.dumps(receipt_fields)
         if len(receipt.encode()) > 2 * MAX_OUTPUT + 512:
             raise ValueError("receipt too large")
