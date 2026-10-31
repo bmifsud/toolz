@@ -7,7 +7,7 @@ import signal
 import sys
 from pathlib import Path
 from websockets.asyncio.client import connect
-from websockets.exceptions import ConnectionClosed
+from websockets.exceptions import ConnectionClosed, InvalidHandshake
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from readonly_runner import COMMANDS
 from replay_store import ReplayStore
@@ -188,7 +188,7 @@ async def main():
                         task.cancel()
                     if tasks:
                         await asyncio.gather(*tasks, return_exceptions=True)
-        except (OSError, TimeoutError) as exc:
+        except (OSError, TimeoutError, InvalidHandshake) as exc:
             print(f"[bridge] Disconnected: {type(exc).__name__}; retrying", flush=True)
         if STOP.exists():
             break
