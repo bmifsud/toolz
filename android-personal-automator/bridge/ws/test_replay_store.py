@@ -3,6 +3,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from replay_store import ReplayStore
 
@@ -26,7 +27,7 @@ class ReplayStoreTests(unittest.TestCase):
             self.assertTrue(self.store.claim(f"request_{i:08d}"))
         self.assertFalse(self.store.claim("request_99999999"))
         self.assertFalse(ReplayStore(self.path, max_ids=3).claim("request_99999999"))
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 3)
 
     def test_reject_malformed_and_non_ascii_ids(self):
@@ -59,38 +60,38 @@ class ReplayStoreTests(unittest.TestCase):
         # An attacker with same-UID filesystem access must not redirect writes
         # to another SQLite database after ReplayStore construction.
         other = Path(self.tmp.name) / "other.sqlite3"
-        with sqlite3.connect(other) as db:
+        with closing(sqlite3.connect(other)) as db, db:
             db.execute("CREATE TABLE requests (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
         self.path.rename(self.path.with_suffix(".saved"))
         self.path.symlink_to(other)
         with self.assertRaises(OSError):
             self.store.claim("req_12345678")
-        with sqlite3.connect(other) as db:
+        with closing(sqlite3.connect(other)) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
 
     def test_parent_directory_symlink_swap_fails_closed(self):
         other = Path(self.tmp.name) / "other_private"
         other.mkdir(mode=0o700)
-        with sqlite3.connect(other / "replay.sqlite3") as db:
+        with closing(sqlite3.connect(other / "replay.sqlite3")) as db, db:
             db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
         (other / "replay.sqlite3").chmod(0o600)
         self.path.parent.rename(self.path.parent.with_name("private_saved"))
         self.path.parent.symlink_to(other, target_is_directory=True)
         with self.assertRaises(OSError):
             self.store.claim("req_12345678")
-        with sqlite3.connect(other / "replay.sqlite3") as db:
+        with closing(sqlite3.connect(other / "replay.sqlite3")) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
 
     def test_same_owner_regular_file_swap_fails_closed_while_running(self):
         self.assertTrue(self.store.claim("req_12345678"))
         self.assertFalse(self.store.claim("req_12345678"))
         self.path.rename(self.path.with_suffix(".saved"))
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
         self.path.chmod(0o600)
         with self.assertRaisesRegex(OSError, "identity changed"):
             self.store.claim("req_12345678")
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
 
     def test_same_owner_regular_directory_swap_fails_closed_while_running(self):
@@ -99,7 +100,7 @@ class ReplayStoreTests(unittest.TestCase):
         self.path.parent.rename(saved)
         replacement = self.path.parent
         replacement.mkdir(mode=0o700)
-        with sqlite3.connect(replacement / "replay.sqlite3") as db:
+        with closing(sqlite3.connect(replacement / "replay.sqlite3")) as db, db:
             db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
         (replacement / "replay.sqlite3").chmod(0o600)
         with self.assertRaisesRegex(OSError, "replay directory permissions"):
