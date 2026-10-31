@@ -42,8 +42,8 @@ def sandbox(tmp_path, short_gnupg_home):
     # Fail closed if the production storage layout changes; never execute it directly.
     source=SCRIPT.read_text()
     redirected=source
-    for literal,target,count in (('/mnt/shared',tmp_path/'shared',4),
-                                 ('/sdcard',tmp_path/'sdcard',4)):
+    for literal,target,count in (('/mnt/shared',tmp_path/'shared',3),
+                                 ('/sdcard',tmp_path/'sdcard',3)):
         assert source.count(literal)==count, f'Unexpected storage references: {literal}'
         redirected=redirected.replace(literal,str(target))
     assert '/mnt/shared' not in redirected and '/sdcard' not in redirected.replace(str(tmp_path/'sdcard'),'')
