@@ -2,12 +2,11 @@ import os, pathlib, subprocess
 import pytest
 BASE=pathlib.Path(__file__).resolve().parents[1]
 @pytest.fixture
-def setup(tmp_path):
+def setup(tmp_path, short_gnupg_home):
  h=tmp_path/'home'; (h/'debian-fs').mkdir(parents=True); (h/'start-debian.sh').write_text('start')
  b=tmp_path/'bin'; b.mkdir(); r=b/'rclone'; r.write_text('#!/bin/sh\n[ "$1" = listremotes ] && echo gdrive:\nexit 0\n'); r.chmod(0o755)
  p=tmp_path/'pw'; p.write_text('testpassphrase'); s=tmp_path/'snaps'; s.mkdir()
- d=os.environ.copy(); d.update(HOME=str(h),ALLOW_TEST_HOST='1',SNAP_DIR=str(s),BACKUP_PASSPHRASE_FILE=str(p),PATH=str(b)+':'+d['PATH'],GNUPGHOME=str(tmp_path/'gnupg'))
- pathlib.Path(d['GNUPGHOME']).mkdir(mode=0o700)
+ d=os.environ.copy(); d.update(HOME=str(h),ALLOW_TEST_HOST='1',SNAP_DIR=str(s),BACKUP_PASSPHRASE_FILE=str(p),PATH=str(b)+':'+d['PATH'],GNUPGHOME=str(short_gnupg_home))
  return d,h,s
 
 def invoke(setup,*args):

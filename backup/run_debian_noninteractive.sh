@@ -19,5 +19,13 @@ done
 # Inherit only the required secret, never an interactive shell startup or tmux.
 pass="${BACKUP_PASSPHRASE:-}"
 [[ -n "$pass" ]] || { echo 'BACKUP_PASSPHRASE must be provided by the scheduler' >&2; exit 1; }
+# Resolve the Termux archive destination to its Debian-visible path.
+# This keeps the producer output and scheduler verification pointed at one directory.
+host_out="${TIER1_LOCAL_DIR:-${ROOTFS_DIR:-$ROOTFS}/home/$USER_NAME/ClineOmniRouteBackups}"
+case "$host_out" in
+ "$ROOTFS"/*) debian_out="${host_out#"$ROOTFS"}" ;;
+ /sdcard/*) debian_out="$host_out" ;;
+ *) echo "Unsupported Tier-1 output path outside Debian rootfs or /sdcard: $host_out" >&2; exit 1 ;;
+esac
 unset LD_PRELOAD
-exec proot "${args[@]}" /usr/bin/env -i HOME="/home/$USER_NAME" USER="$USER_NAME" LOGNAME="$USER_NAME" SHELL=/bin/bash TERM="${TERM:-xterm-256color}" LANG=C.UTF-8 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin TMPDIR=/tmp ANDRONIX_DISTRO=debian SKIP_AI_TMUX=1 BACKUP_PASSPHRASE="$pass" /bin/bash --noprofile --norc -c 'exec "$@"' backup-runner "$@"
+exec proot "${args[@]}" /usr/bin/env -i HOME="/home/$USER_NAME" USER="$USER_NAME" LOGNAME="$USER_NAME" SHELL=/bin/bash TERM="${TERM:-xterm-256color}" LANG=C.UTF-8 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin TMPDIR=/tmp ANDRONIX_DISTRO=debian SKIP_AI_TMUX=1 ANDROID_OUT="$debian_out" BACKUP_PASSPHRASE="$pass" /bin/bash --noprofile --norc -c 'exec "$@"' backup-runner "$@"

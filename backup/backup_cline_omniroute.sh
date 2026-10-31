@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Detect Android Shared Storage mount point (/mnt/shared for Android Linux VM, /sdcard for Termux proot)
-if [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
+# Detect Android Shared Storage or Andronix Debian rootfs backup output directory
+if [ -n "${ANDROID_OUT:-}" ]; then
+  :
+elif [ -n "${TIER1_LOCAL_DIR:-}" ]; then
+  ANDROID_OUT="$TIER1_LOCAL_DIR"
+elif [ -n "${ROOTFS_DIR:-}" ]; then
+  ANDROID_OUT="${ROOTFS_DIR}/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+elif [ -d "$HOME/.andronix/distros/debian/rootfs" ]; then
+  ANDROID_OUT="$HOME/.andronix/distros/debian/rootfs/home/${DEBIAN_USER:-b}/ClineOmniRouteBackups"
+elif [ -d "/mnt/shared" ] && [ -w "/mnt/shared" ]; then
   ANDROID_OUT="/mnt/shared/ClineOmniRouteBackups"
 elif [ -d "/sdcard" ] && [ -w "/sdcard" ]; then
   ANDROID_OUT="/sdcard/ClineOmniRouteBackups"
@@ -13,7 +21,11 @@ fi
 GDRIVE_REMOTE="gdrive:ClineOmniRouteBackups"
 mkdir -p "$ANDROID_OUT"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-WORK_DIR=$(mktemp -d /tmp/cline_omni_backup.XXXXXX)
+# Private staging also protects copied secrets and SQLite exports.
+umask 077
+# Termux supplies TMPDIR; HOME is a portable fallback when it is unset.
+# Fail closed if the selected location cannot allocate a private directory.
+WORK_DIR=$(mktemp -d "${TMPDIR:-$HOME}/cline_omni_backup.XXXXXX")
 trap 'rm -rf "$WORK_DIR"' EXIT
 
 MODE="${1:-backup}"
@@ -127,14 +139,11 @@ else
   tar -czp -C "$WORK_DIR" . | gpg --symmetric --cipher-algo AES256 -o "$OUT_FILE"
 fi
 
-# Retain the 5 most recent local backups on Android shared storage
-ls -1t "$ANDROID_OUT"/cline_omniroute_backup_*.tar.gz.gpg 2>/dev/null | tail -n +6 | xargs -r rm -f
 echo "Local encrypted backup saved: $OUT_FILE"
 
 echo "[5/5] Syncing encrypted archive to Google Drive ($GDRIVE_REMOTE)..."
 if command -v rclone >/dev/null 2>&1 && rclone listremotes | grep -q "^gdrive:$"; then
   rclone copy "$OUT_FILE" "$GDRIVE_REMOTE/" --progress
-  rclone delete "$GDRIVE_REMOTE/" --min-age 30d >/dev/null 2>&1 || true
   echo "Google Drive upload complete!"
 else
   echo "Warning: rclone remote 'gdrive:' not configured. Skipping cloud upload (run 'rclone config' to enable)."
