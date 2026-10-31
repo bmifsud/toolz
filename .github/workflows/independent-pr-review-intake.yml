@@ -1,0 +1,38 @@
+name: Independent PR review intake (scaffold)
+# Initial safe intake only: no Jules/Codex invocation, issue writes, or automatic fixes.
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Existing pull request number to review'
+        required: true
+        type: string
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate and collect immutable PR metadata
+        id: intake
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,7}$ ]] || { echo 'Invalid PR number'; exit 1; }
+          mkdir -p receipts
+          gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '{number,html_url,title,state,draft,base_sha:.base.sha,head_sha:.head.sha,head_repo:.head.repo.full_name}' > receipts/pr.json
+          jq -e '.state == "open" and (.head_sha | test("^[0-9a-f]{40}$"))' receipts/pr.json >/dev/null
+          printf '%s\n' 'Intake only: external reviewer integrations and automatic issue/fix loop are NOT enabled.' > receipts/status.txt
+          cat receipts/status.txt
+      - name: Upload immutable intake receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-intake-${{ github.run_id }}
+          path: receipts/
+          retention-days: 14
