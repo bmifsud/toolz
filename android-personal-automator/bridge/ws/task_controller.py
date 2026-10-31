@@ -53,17 +53,32 @@ class TaskQueue:
                        (task_id, diagnostic, "queued", now, now + timeout))
         return task_id
 
+    @staticmethod
+    def _reconcile_expired(db, now: float, task_id: str | None = None):
+        """Fail closed on expiry, preserving the existing v2 receipt format.
+
+        Called within an IMMEDIATE transaction so a concurrent claim, completion
+        or status request cannot overwrite a terminal result. No worker-stop
+        acknowledgment is implied by a lease-expired receipt.
+        """
+        only_id = " AND id=?" if task_id is not None else ""
+        args = (task_id,) if task_id is not None else ()
+        db.execute(
+            "UPDATE tasks SET state='failed', result=?, lease_until=NULL "
+            f"WHERE state IN ('queued','running') AND deadline<=?{only_id}",
+            (_failure_receipt("deadline_exceeded"), now, *args))
+        db.execute(
+            "UPDATE tasks SET state='failed', result=?, lease_until=NULL "
+            f"WHERE state='running' AND lease_until<=?{only_id}",
+            (_failure_receipt("lease_expired"), now, *args))
+
     def claim(self, lease_seconds: int = 30):
         if not isinstance(lease_seconds, int) or isinstance(lease_seconds, bool) or not 1 <= lease_seconds <= 300:
             raise ValueError("lease out of bounds")
         now = time.time()
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute("UPDATE tasks SET state='failed', result=? WHERE state IN ('queued','running') AND deadline<=?",
-                       (_failure_receipt("deadline_exceeded"), now))
-            # Fail closed: expired running leases become failed, never replayed automatically.
-            db.execute("UPDATE tasks SET state='failed', result=? WHERE state='running' AND lease_until<=?",
-                       (_failure_receipt("lease_expired"), now))
+            self._reconcile_expired(db, now)
             row = db.execute("SELECT id,diagnostic,deadline FROM tasks WHERE state='queued' ORDER BY created,id LIMIT 1").fetchone()
             if row:
                 db.execute("UPDATE tasks SET state='running', attempt=attempt+1, lease_until=? WHERE id=?",
@@ -135,9 +150,14 @@ class TaskQueue:
             return cursor.rowcount == 1
 
     def get(self, task_id: str):
+        # Status polling must not depend on the dispatcher calling claim().
+        # Reconcile only this task; do not trigger command execution or replay.
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._reconcile_expired(db, time.time(), task_id)
             row = db.execute("SELECT id,diagnostic,state,created,deadline,attempt,result FROM tasks WHERE id=?",
                              (task_id,)).fetchone()
+            db.execute("COMMIT")
         if row is None:
             return None
         return dict(zip(("id", "diagnostic", "state", "created", "deadline", "attempt", "result"), row))
