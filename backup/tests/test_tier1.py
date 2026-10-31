@@ -116,11 +116,12 @@ def test_backup_encrypts_sqlite_secrets_workspace_and_cloud(sandbox,tmp_path):
     assert 'check ' in calls.read_text()
     assert 'delete ' not in calls.read_text()
 
-@pytest.mark.xfail(strict=False, reason='Existing Tier-1 restore uses interactive gpg --decrypt without loopback passphrase support; preserved unchanged')
 def test_local_restore_roundtrip_and_permissions(sandbox,tmp_path):
     d,home,workspace,_,_=sandbox
     assert run(sandbox,'backup',str(workspace)).returncode==0
-    a=archive(sandbox)
+    # A verified upload intentionally removes the local pending archive.
+    assert not list((home/'ClineOmniRouteBackups').glob('*.gpg'))
+    a=next(Path(d['TEST_REMOTE']).glob('*.gpg'))
     (home/'.cline'/'data'/'secrets.json').unlink()
     (home/'.omniroute'/'storage.sqlite').unlink()
     restored=tmp_path/'restored'
@@ -136,11 +137,15 @@ def test_local_restore_roundtrip_and_permissions(sandbox,tmp_path):
 def test_restore_missing_archive_rejected(sandbox):
     assert run(sandbox,'--restore','/missing/archive.gpg').returncode!=0
 
-@pytest.mark.xfail(strict=False, reason='Tier-1 restore has no unattended GPG passphrase input; requires device-level acceptance')
 def test_restore_wrong_passphrase_rejected(sandbox):
-    assert run(sandbox,'backup',str(sandbox[2])).returncode==0
-    d=sandbox[0].copy();d['BACKUP_PASSPHRASE']='incorrect'
-    assert run(sandbox,'--restore',str(archive(sandbox)),env=d).returncode!=0
+    d,home,workspace,_,_=sandbox
+    assert run(sandbox,'backup',str(workspace)).returncode==0
+    assert not list((home/'ClineOmniRouteBackups').glob('*.gpg'))
+    a=next(Path(d['TEST_REMOTE']).glob('*.gpg'))
+    wrong_env=d.copy();wrong_env['BACKUP_PASSPHRASE']='incorrect'
+    result=run(sandbox,'--restore',str(a),env=wrong_env)
+    assert result.returncode!=0
+    assert 'gpg:' in result.stderr
 
 def test_missing_rclone_remote_does_not_prevent_local_backup(sandbox):
     sandbox[4]('rclone','[ "$1" = listremotes ] && exit 0\nexit 1')
