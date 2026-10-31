@@ -6,16 +6,26 @@ and an approved ChatGPT tool integration. No arbitrary commands or scripts.
 import asyncio
 import hmac
 import os
-import re
 import secrets
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 import websockets
+from websockets.exceptions import WebSocketException
 
 ALLOWED = frozenset({"git-branch", "ssh-status", "tier1-tests"})
 MAX_RESPONSE_BYTES = 16384
 app = FastAPI(title="Toolz diagnostic gateway", docs_url=None, redoc_url=None, openapi_url=None)
+
+
+def valid_output(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 class DiagnosticRequest(BaseModel):
@@ -26,7 +36,7 @@ def check_auth(header: str | None) -> None:
     expected = os.environ.get("BRIDGE_GATEWAY_TOKEN", "")
     if not expected or not header or not header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="unauthorized")
-    if not hmac.compare_digest(header[7:], expected):
+    if not hmac.compare_digest(header[7:].encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
@@ -47,7 +57,7 @@ async def execute(diagnostic: str) -> dict:
         if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_RESPONSE_BYTES:
             raise RuntimeError("invalid or oversized response")
         response = json.loads(raw)
-        if response.get("id") != request_id:
+        if not isinstance(response, dict) or response.get("id") != request_id:
             raise RuntimeError("response correlation mismatch")
         return response
 
@@ -59,15 +69,26 @@ async def diagnostic(request: DiagnosticRequest, authorization: str | None = Hea
         raise HTTPException(status_code=400, detail="diagnostic not allowlisted")
     try:
         result = await execute(request.diagnostic)
-    except (OSError, TimeoutError, RuntimeError, ValueError, websockets.exceptions.WebSocketException):
+    except (OSError, TimeoutError, RuntimeError, ValueError, WebSocketException):
         raise HTTPException(status_code=502, detail="bridge unavailable")
     # Preserve protocol result but never forward a relay's arbitrary extra fields.
-    payload = result.get("result")
-    if not isinstance(payload, dict):
+    payload = result.get("result") if isinstance(result, dict) else None
+    if (
+        not isinstance(result, dict)
+        or result.get("type") != "result"
+        or not isinstance(result.get("id"), str)
+        or not result["id"]
+        or not isinstance(payload, dict)
+        or payload.get("diagnostic") != request.diagnostic
+        or type(payload.get("exit_code")) is not int
+        or "error" in payload
+        or not valid_output(payload.get("stdout", ""))
+        or not valid_output(payload.get("stderr", ""))
+    ):
         raise HTTPException(status_code=502, detail="invalid device result")
     return {
         "id": result["id"], "diagnostic": request.diagnostic,
         "exit_code": payload.get("exit_code"),
-        "stdout": str(payload.get("stdout", ""))[:8192],
-        "stderr": str(payload.get("stderr", ""))[:8192],
+        "stdout": payload.get("stdout", "")[:8192],
+        "stderr": payload.get("stderr", "")[:8192],
     }
