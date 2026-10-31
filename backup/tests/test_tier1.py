@@ -97,7 +97,7 @@ def archive(sandbox,storage=None):
     return archives[0]
 
 @pytest.mark.parametrize('selected', ['shared','sdcard'])
-def test_shared_storage_backup_and_retention_are_isolated(sandbox,selected):
+def test_shared_storage_backup_and_existing_archives_are_isolated(sandbox,selected):
     _,home,workspace,calls,_=sandbox
     root=home.parent
     storage=root/selected
@@ -113,12 +113,18 @@ def test_shared_storage_backup_and_retention_are_isolated(sandbox,selected):
         old=out/name;old.write_text('old')
         os.utime(old,(946684800+i,946684800+i))
         (untouched/name).write_text('untouched')
-    p=run(sandbox,'backup',str(workspace))
+    # Exercise the actual shared-storage selection instead of the sandbox's
+    # default ANDROID_OUT override. Do not delete existing encrypted archives:
+    # the Tier-1 launcher does not implement verified-upload retention.
+    d=sandbox[0].copy()
+    for name in ('ANDROID_OUT','TIER1_LOCAL_DIR','ROOTFS_DIR'):
+        d.pop(name,None)
+    p=run(sandbox,'backup',str(workspace),env=d)
     assert p.returncode==0,p.stderr
     remaining=list(out.glob('cline_omniroute_backup_*.tar.gz.gpg'))
-    assert len(remaining)==5
+    assert len(remaining)==8
     assert sorted(a.name for a in remaining if a.read_bytes()==b'old')==[
-        f'cline_omniroute_backup_20260101_00000{i}.tar.gz.gpg' for i in range(3,7)]
+        f'cline_omniroute_backup_20260101_00000{i}.tar.gz.gpg' for i in range(7)]
     fresh=[a for a in remaining if a.read_bytes()!=b'old']
     assert len(fresh)==1 and fresh[0].stat().st_size>0
     assert str(fresh[0]) in calls.read_text()
