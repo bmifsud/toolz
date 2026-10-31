@@ -18,7 +18,7 @@ The relay is hosted at https://toolz-termux-ws-relay.onrender.com, dashboard htt
 
 ## Security model
 
-- Only `git-branch`, `tier1-tests`, and `ssh-status` are allowed through the WebSocket transport; the device must have the updated client and runner for `tier1-tests`. `git-sync-pr` is deliberately excluded because it can mutate the checkout; invoke it locally only after separate user authorization.
+- Only `git-branch` and `ssh-status` are allowed through the WebSocket transport. `tier1-tests` remains local-only in `readonly_runner.py`: pytest executes code from a mutable checkout, fixtures, and plugins. Remote pytest must not be re-enabled without explicit authorization, a trusted environment, and emulator validation. `git-sync-pr` is deliberately excluded because it can mutate the checkout; invoke it locally only after separate user authorization.
 - No arbitrary shell, writes, APK installs, screenshots, backup operations or privileged Android commands.
 - Device connects outward over `wss://`; controller must be separately authenticated.
 - Distinct random secrets (minimum 32 characters): `BRIDGE_DEVICE_TOKEN` and `BRIDGE_CONTROLLER_TOKEN`. Set in Render environment, **never** commit, paste into issues, or expose in logs. Headers use `Authorization: Bearer ...`.
@@ -130,8 +130,8 @@ Run only with explicit local approval and private device/controller credentials.
 1. Start the device listener in one Termux session; verify its connected message. In another trusted terminal, run the controller and confirm a matching `git-branch` result.
 2. For idle STOP, create `~/.local/state/toolz-termux-bridge/STOP` while the device is waiting. Verify it exits within a few seconds and does not reconnect.
 3. Remove STOP, restart the listener, and confirm a second authorized request succeeds.
-4. For active STOP, start `tier1-tests` from the controller only when the test checkout is present; create STOP while it is executing. Confirm the listener exits, no result is sent after STOP, and no diagnostic process group remains. Use `pgrep -af 'pytest.*test_tier1.py'` to check for survivors. A test finishing before STOP is inconclusive; repeat if necessary.
-5. Verify invalid device/controller tokens are rejected without publishing token values, and disconnecting the device reports an error to the controller. Verify only the two allowlisted diagnostics can be requested.
+4. For active STOP, use an explicitly authorized disposable emulator test worker, not a production backup or remote pytest run. Confirm listener exit, no success receipt after STOP, and no worker descendants. Emulator evidence is still pending.
+5. Verify invalid device/controller tokens are rejected without publishing token values, and disconnecting the device reports an error to the controller. Verify only the two remotely allowlisted diagnostics can be requested, and remote `tier1-tests` is rejected.
 6. Remove STOP only when ready to reconnect. Terminate both listener and controller when finished; unset exported tokens in each shell.
 
 **Pass criteria:** Attach redacted timestamps, commit SHA, test outputs, and process-survivor checks to issue #27. Do not mark the physical gate passed based solely on CI, Render health, or the historical controller result. Android GitHub Actions passing does not mean the WebSocket bridge was exercised in an emulator.

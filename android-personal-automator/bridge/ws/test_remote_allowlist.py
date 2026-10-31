@@ -26,10 +26,11 @@ class RemoteAllowlistTests(unittest.IsolatedAsyncioTestCase):
             self.controller = importlib.reload(controller)
 
     async def test_remote_allowlists_exclude_mutating_git_sync(self):
-        expected = {"git-branch", "tier1-tests", "ssh-status"}
+        expected = {"git-branch", "ssh-status"}
         for module in (self.relay, self.device, self.controller):
             self.assertEqual(set(module.ALLOWED_DIAGNOSTICS), expected)
             self.assertNotIn("git-sync-pr", module.ALLOWED_DIAGNOSTICS)
+            self.assertNotIn("tier1-tests", module.ALLOWED_DIAGNOSTICS)
 
     async def test_direct_device_worker_rejects_mutating_diagnostic(self):
         with patch.object(self.device.asyncio, "create_subprocess_exec") as spawn:
