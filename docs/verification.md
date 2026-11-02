@@ -50,3 +50,7 @@ An artifact existing is not a passing result. Neither JSON nor JUnit is a signed
 These artifacts contain fixture-only test output and must never be used with live credentials.
 No HOME/environment dump, provider key, archive or device screenshot is uploaded.
 Download evidence before retention expires if it is needed for a release record.
+
+## Desktop Commander routing
+
+Device planning targets `desktop_commander`. Legacy environment labels do not establish direct connections. The planner accepts `desktop_commander_available` only as a boolean hint; `ready_for_commander` is not execution or authentication evidence. Test rejected legacy destinations, unknown diagnostics, malformed flags and mutation denial. Standing release gates above remain unchanged; Desktop Commander use does not satisfy them automatically.

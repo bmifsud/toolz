@@ -16,19 +16,19 @@ from debian_diagnostics import discover_launcher, diagnostic_spec
 
 class DebianTests(unittest.TestCase):
     def test_explicit(self):
-        self.assertEqual(route("@Debian check disk").destination, "debian")
+        self.assertEqual(route("@Debian check disk").destination, "desktop_commander")
     def test_auto(self):
-        self.assertEqual(route("Check Andronix rootfs").destination, "debian")
+        self.assertEqual(route("Check Andronix rootfs").destination, "desktop_commander")
     def test_ambiguous(self):
-        self.assertEqual(route("Compare Debian and Termux").permission, "clarify")
+        self.assertEqual(route("Compare Debian and Termux").destination, "desktop_commander")
     def test_disconnected(self):
-        self.assertEqual(plan_execution(route("@Debian check disk"), "debian-disk").status, "bridge_disconnected")
+        self.assertEqual(plan_execution(route("@Debian check disk"), "debian-disk").status, "desktop_commander_unavailable")
     def test_allowlist(self):
-        self.assertEqual(plan_execution(route("@Debian check disk"), "debian-disk", bridge_authenticated=True).status, "ready_for_executor")
-        self.assertEqual(plan_execution(route("@Debian check disk"), "shell", bridge_authenticated=True).status, "denied")
+        self.assertEqual(plan_execution(route("@Debian check disk"), "debian-disk", desktop_commander_available=True).status, "ready_for_commander")
+        self.assertEqual(plan_execution(route("@Debian check disk"), "shell", desktop_commander_available=True).status, "denied")
     def test_mutation(self):
         d = route("@Debian delete rootfs")
-        self.assertEqual(plan_execution(d, "debian-identity", bridge_authenticated=True, user_approved=True).status, "denied")
+        self.assertEqual(plan_execution(d, "debian-identity", desktop_commander_available=True, user_approved=True).status, "denied")
     def test_specs(self):
         self.assertEqual(diagnostic_spec("debian-identity").argv, ("cat", "/etc/os-release"))
         with self.assertRaises(ValueError):

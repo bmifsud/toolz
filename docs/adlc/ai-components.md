@@ -15,3 +15,7 @@ Both clients bound input/output and use 30-second HTTP timeouts; provider billin
 not enforced locally. Do not send private device data or credentials. Model suggestions are
 untrusted and require source-based review. Prompts and tool code are versioned under scripts/.
 This is a manual inventory, not a generated standards-compliant AIBOM/SBOM.
+
+## Offline device planning update (2026-11-02)
+
+The deterministic router/planner has no model or external API. Device requests now target Remote Desktop Commander exclusively; legacy Termux/Debian labels are environment hints. No tool permission or executor is added. Caller availability booleans are not authentication. See [intent](changes/desktop-commander-access/intent.md) and [evidence](changes/desktop-commander-access/evidence.md).

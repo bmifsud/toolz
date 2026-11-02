@@ -8,11 +8,11 @@ from typing import Any, Mapping
 
 MAX_OUTPUT = 16384
 try:
-    from .routing_adapter import TERMUX_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
+    from .routing_adapter import HOST_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
 except ImportError:
-    from routing_adapter import TERMUX_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
+    from routing_adapter import HOST_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
 
-VALID_DIAGNOSTICS = TERMUX_DIAGNOSTICS | DEBIAN_DIAGNOSTICS
+VALID_DIAGNOSTICS = HOST_DIAGNOSTICS | DEBIAN_DIAGNOSTICS
 REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 
 @dataclass(frozen=True)
