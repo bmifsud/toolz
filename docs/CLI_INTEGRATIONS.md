@@ -1,6 +1,6 @@
 # Toolz CLI integrations
 
-Toolz uses a **direct, server-based integration layer** for approved AI CLIs and cloud agents. SSH is not the integration transport.
+The proposed design uses a **direct, server-based integration layer** for approved AI CLIs and cloud agents. SSH is not the integration transport.
 
 ## Trust model
 
@@ -35,11 +35,11 @@ Toolz is always the authorization, task-state, receipt, and audit authority. An 
 | Jules | Cloud agent/conductor | Planned |
 | OmniRoute through Cline | Model/router backend for Cline tasks | Planned |
 
-This first implementation introduces only the shared contract and registry. It does **not** launch CLI processes, contact Termux, call cloud services, or execute tasks.
+The contract and registry described below are not present in the current main source tree. It does **not** launch CLI processes, contact Termux, call cloud services, or execute tasks.
 
 ## Contract
 
-The contract is versioned as `1` and is implemented in
+The proposed contract is versioned as `1`; its planned source path is
 `android-personal-automator/bridge/cli_integration.py`.
 
 A task request contains:
@@ -81,7 +81,7 @@ Capability names are illustrative until each adapter implementation defines its 
 
 ## Implementation roadmap
 
-1. Shared contract and registry — this change.
+1. Implement and review the shared contract and registry.
 2. Cline adapter with OmniRoute routing.
 3. Codex CLI adapter.
 4. Gemini CLI adapter.

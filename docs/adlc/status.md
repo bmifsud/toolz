@@ -1,13 +1,15 @@
 # ADLC release ledger
 
-Updated 2026-11-02. Workflow setup only; operational acceptance remains unverified.
+Updated 2026-11-02. Initial template PR #113 merged; alignment is a separate draft change.
 
-| Workstream | Phase | Status | Evidence needed / next action |
+| Workstream | Phase | Status | Evidence / next action |
 | --- | --- | --- | --- |
-| ADLC template | Verify | Draft PR | Review template and relative links |
-| Tier-1 | Verify | Pending | Scheduled execution, encrypted upload/readback, catch-up |
-| Tier-2 | Verify | Pending | Safe OmniRoute shutdown, snapshot/upload, isolated restore |
-| Bridge | Verify | Pending | Restore/locate reviewed source; emulator and tablet authenticated lifecycle |
-| Release | Release | Blocked | All standing gates, required CI and approvals on final revision |
+| Template | Implement | Merged | PR #113; not operational acceptance |
+| Repository alignment | Verify | Partial | [Evidence](changes/adlc-alignment/evidence.md); full CI pending |
+| Branch protection | Plan | Unverified | Maintainer to configure/verify required ADLC check without bypassing protections |
+| Tier-1 | Verify | Pending | Scheduled run, encrypted upload/readback and catch-up |
+| Tier-2 | Verify | Pending | OmniRoute shutdown/WAL handling, snapshot/upload and isolated restore |
+| Bridge | Plan | Pending | Locate/integrate reviewed source; authenticated emulator and tablet lifecycle |
+| Release | Release | Blocked | All standing gates and final-revision CI/approvals |
 
-Do not promote pending to passed without revision-bound evidence.
+Do not convert pending to pass without revision-bound evidence. Local offline checks do not waive release gates.

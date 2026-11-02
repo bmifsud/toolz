@@ -45,15 +45,25 @@ This template does not change schedules, branch protection, runtime permissions 
 GitHub checkboxes and agent instructions are records, not enforced security controls.
 Enforcement gaps stay blocked until a separately reviewed implementation provides them.
 
+## Automated checks and remaining gaps
+
+Run `bash tests/run-all-tests.sh` in the isolated environment described in
+[verification](../verification.md). [CI](../../.github/workflows/adlc.yml) runs the same gate.
+The ADLC checker detects missing required files, broken local Markdown links and incomplete
+change-record pairs. It does not validate the truth of evidence or enforce human approval.
+Configure required checks in repository branch protection separately; no settings were changed.
+
 ## Current baseline
 
-Inspected main on 2026-11-02: backup scripts/tests and documentation exist;
-no AGENTS.md, GitHub templates/workflows or Android project were returned by the inspected tree.
-Older documentation references absent workflows and Android paths. Reconcile those references
-before using them as executable instructions. No live backup/device gate was executed for setup.
+The initial template PR #113 is merged. Current source contains backup tools and optional
+advisory clients; Android/bridge implementations remain absent. Documentation is reconciled
+with this inventory. See [alignment intent](changes/adlc-alignment/intent.md),
+[evidence](changes/adlc-alignment/evidence.md) and [AI inventory](ai-components.md).
+Device/cloud operational acceptance remains pending.
 
 ## Sources
 
 Adapted from the user's supplied “AI Software Development Life Cycle.pdf” and
 “A full granular and itemized list of all the steps.pdf.pdf”, read on 2026-11-02.
 Use their lifecycle/checklist concepts proportionately; no legal or standards claims are adopted.
+
