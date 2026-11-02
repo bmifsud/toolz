@@ -1,12 +1,12 @@
 # ADLC release ledger
 
-Updated 2026-11-02. Initial template PR #113 merged; alignment is a separate draft change.
+Updated 2026-11-02. Initial template PR #113 merged; alignment PR #114 is merged.
 
 | Workstream | Phase | Status | Evidence / next action |
 | --- | --- | --- | --- |
 | Template | Implement | Merged | PR #113; not operational acceptance |
-| Repository alignment | Verify | Partial | [Evidence](changes/adlc-alignment/evidence.md); full CI pending |
-| Branch protection | Plan | Unverified | Maintainer to configure/verify required ADLC check without bypassing protections |
+| Repository alignment | Verify | Offline passed | [Evidence](changes/adlc-alignment/evidence.md); merged main CI: 75 passed, 2 xpassed |
+| Branch protection | Plan | Unverified | No repository rulesets returned; branch-protection read denied (403); maintainer verification needed |
 | Tier-1 | Verify | Pending | Scheduled run, encrypted upload/readback and catch-up |
 | Tier-2 | Verify | Pending | OmniRoute shutdown/WAL handling, snapshot/upload and isolated restore |
 | Bridge | Plan | Pending | Locate/integrate reviewed source; authenticated emulator and tablet lifecycle |
