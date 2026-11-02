@@ -1,7 +1,7 @@
 """Fail-closed integration planning for hybrid routing.
 
 This module never executes a connector call, shell command, or device diagnostic.
-A separate authenticated executor must validate and authorize any proposed action.
+Remote Desktop Commander must select the device and authorize any proposed action separately.
 """
 from dataclasses import dataclass
 from typing import Optional
@@ -11,7 +11,7 @@ try:
 except ImportError:
     from request_router import Decision
 
-TERMUX_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests"})
+HOST_DIAGNOSTICS = frozenset({"git-branch", "tier1-tests"})
 DEBIAN_DIAGNOSTICS = frozenset({"debian-identity", "debian-disk"})
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class ExecutionPlan:
     reason: str
 
 def plan_execution(decision: Decision, diagnostic: Optional[str] = None,
-                   *, bridge_authenticated: bool = False,
+                   *, desktop_commander_available: bool = False,
                    user_approved: bool = False) -> ExecutionPlan:
     target = getattr(decision, "destination", None)
     permission = getattr(decision, "permission", None)
@@ -30,13 +30,12 @@ def plan_execution(decision: Decision, diagnostic: Optional[str] = None,
     reason = getattr(decision, "reason", None)
     if not all(isinstance(value, str) for value in (target, permission, action, reason)):
         return ExecutionPlan("unknown", "denied", None, "invalid decision shape")
-    if type(bridge_authenticated) is not bool or type(user_approved) is not bool:
-        return ExecutionPlan(target, "denied", None, "authentication and approval flags must be boolean")
+    if type(desktop_commander_available) is not bool or type(user_approved) is not bool:
+        return ExecutionPlan(target, "denied", None, "availability and approval flags must be boolean")
     allowed = {
         "chatgpt": {("none", "answer"), ("clarify", "none")},
         "github": {("connector_scoped", "propose_connector"), ("approval_required", "propose_only")},
-        "termux": {("allowlisted_only", "propose_diagnostic"), ("approval_required", "propose_only")},
-        "debian": {("allowlisted_only", "propose_diagnostic"), ("approval_required", "propose_only")},
+        "desktop_commander": {("allowlisted_only", "propose_diagnostic"), ("approval_required", "propose_only")},
     }
     if (permission, action) not in allowed.get(target, set()):
         return ExecutionPlan(target, "denied", None, "unsupported decision state")
@@ -49,15 +48,15 @@ def plan_execution(decision: Decision, diagnostic: Optional[str] = None,
     if decision.destination == "github":
         return ExecutionPlan("github", "connector_required", None,
                              "scoped GitHub connector must authorize and execute separately")
-    if decision.destination in ("termux", "debian"):
+    if decision.destination == "desktop_commander":
         target = decision.destination
-        allowlist = TERMUX_DIAGNOSTICS if target == "termux" else DEBIAN_DIAGNOSTICS
+        allowlist = HOST_DIAGNOSTICS | DEBIAN_DIAGNOSTICS
         if not isinstance(diagnostic, str) or diagnostic not in allowlist:
             return ExecutionPlan(target, "denied", None, "unknown or missing allowlisted diagnostic")
-        if not bridge_authenticated:
-            return ExecutionPlan(target, "bridge_disconnected", None, "authenticated device bridge unavailable")
+        if not desktop_commander_available:
+            return ExecutionPlan(target, "desktop_commander_unavailable", None, "Remote Desktop Commander device access required")
         if decision.permission == "approval_required":
             return ExecutionPlan(target, "denied", None, "mutating device actions not supported")
-        return ExecutionPlan(target, "ready_for_executor", diagnostic,
-                             "requires separate authenticated executor and receipt")
+        return ExecutionPlan(target, "ready_for_commander", diagnostic,
+                             "planning only; Desktop Commander must verify device, authorization and receipt")
     return ExecutionPlan(decision.destination, "denied", None, "unknown destination")

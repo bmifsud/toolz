@@ -45,8 +45,8 @@ class ReceiptBoundaryTests(unittest.TestCase):
     check = ReceiptTests.check
 
     def test_every_planned_diagnostic_has_receipt_support(self):
-        from routing_adapter import TERMUX_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
-        self.assertEqual(module.VALID_DIAGNOSTICS, TERMUX_DIAGNOSTICS | DEBIAN_DIAGNOSTICS)
+        from routing_adapter import HOST_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
+        self.assertEqual(module.VALID_DIAGNOSTICS, HOST_DIAGNOSTICS | DEBIAN_DIAGNOSTICS)
         for diagnostic in module.VALID_DIAGNOSTICS:
             with self.subTest(diagnostic=diagnostic):
                 payload = {**self.payload, "diagnostic": diagnostic}

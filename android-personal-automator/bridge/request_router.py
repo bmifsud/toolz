@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime, timezone
 
-PREFIX = re.compile(r"^\s*@(ChatGPT|GitHub|Termux|Debian)\b\s*:?[ \t]*", re.I)
+PREFIX = re.compile(r"^\s*@(ChatGPT|GitHub|Remote Desktop Commander|Desktop Commander|Termux|Debian)\b\s*:?[ \t]*", re.I)
 TERMUX = re.compile(r"\b(termux|tablet|android device|on my device|cron|local backup|device logs)\b", re.I)
 DEBIAN = re.compile(r"\b(debian|andronix|proot|rootfs|tier-2|tier 2)\b", re.I)
 GITHUB = re.compile(r"\b(github|pull request|\bpr\b|repository|commit|workflow|actions|branch)\b", re.I)
@@ -28,9 +28,9 @@ def route(message: str) -> Decision:
     if not body.strip():
         return Decision("chatgpt", "clarify", "none", "empty prefixed request")
     if explicit:
-        target = {"chatgpt": "chatgpt", "github": "github", "termux": "termux", "debian": "debian"}[explicit]
+        target = {"chatgpt": "chatgpt", "github": "github", "termux": "desktop_commander", "debian": "desktop_commander", "desktop commander": "desktop_commander", "remote desktop commander": "desktop_commander"}[explicit]
     else:
-        targets = [name for name, found in (("termux", TERMUX.search(body)), ("debian", DEBIAN.search(body)), ("github", GITHUB.search(body))) if found]
+        targets = [name for name, found in (("desktop_commander", TERMUX.search(body) or DEBIAN.search(body)), ("github", GITHUB.search(body))) if found]
         if len(targets) > 1:
             return Decision("chatgpt", "clarify", "none", "multiple execution targets")
         target = targets[0] if targets else "chatgpt"
@@ -38,10 +38,10 @@ def route(message: str) -> Decision:
         return Decision(target, "none", "answer", "local response or clarification")
     if MUTATE.search(body):
         return Decision(target, "approval_required", "propose_only", "mutating operation")
-    if target in ("termux", "debian"):
+    if target == "desktop_commander":
         if TEST.search(body):
-            return Decision(target, "allowlisted_only", "propose_diagnostic", "bounded test requested")
-        return Decision(target, "allowlisted_only", "propose_diagnostic", "read-only diagnostic")
+            return Decision(target, "allowlisted_only", "propose_diagnostic", "bounded test via Desktop Commander")
+        return Decision(target, "allowlisted_only", "propose_diagnostic", "diagnostic via Desktop Commander")
     return Decision(target, "connector_scoped", "propose_connector", "GitHub connector required")
 
 def audit_event(message: str, decision: Decision, request_id: str, at=None) -> str:

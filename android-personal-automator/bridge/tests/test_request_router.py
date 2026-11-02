@@ -12,12 +12,19 @@ route, audit_event = module.route, module.audit_event
 
 class RouterTests(unittest.TestCase):
     def test_explicit_override(self):
-        self.assertEqual(route("@Termux check GitHub branch").destination, "termux")
+        self.assertEqual(route("@Termux check GitHub branch").destination, "desktop_commander")
         self.assertEqual(route("@GitHub check tablet logs").destination, "github")
         self.assertEqual(route("@ChatGPT explain cron").destination, "chatgpt")
+    def test_commander_prefixes_and_legacy_environment_hints(self):
+        for label in ("Desktop Commander", "Remote Desktop Commander", "Termux", "Debian"):
+            with self.subTest(label=label):
+                self.assertEqual(route(f"@{label}: check disk").destination, "desktop_commander")
+                self.assertEqual(route(f"@{label}").permission, "clarify")
+        self.assertEqual(route("Check Debian and Termux").destination, "desktop_commander")
+
     def test_automatic(self):
         self.assertEqual(route("Check my repository workflow").destination, "github")
-        self.assertEqual(route("Check cron on my tablet").destination, "termux")
+        self.assertEqual(route("Check cron on my tablet").destination, "desktop_commander")
         self.assertEqual(route("Explain encryption").destination, "chatgpt")
     def test_ambiguous(self):
         d = route("Compare GitHub workflow and Termux logs")
@@ -37,7 +44,7 @@ class RouterTests(unittest.TestCase):
         record = audit_event("@Termux check " + secret, route("@Termux check"), "req_12345678", datetime(2026, 10, 27, tzinfo=timezone.utc))
         obj = json.loads(record)
         self.assertNotIn(secret, record)
-        self.assertEqual(obj["destination"], "termux")
+        self.assertEqual(obj["destination"], "desktop_commander")
         with self.assertRaises(ValueError):
             audit_event("hello", route("hello"), "../bad")
 if __name__ == "__main__":
