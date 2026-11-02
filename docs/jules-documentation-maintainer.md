@@ -10,12 +10,13 @@ Maintain public/external developer documentation and non-sensitive internal tech
 2. Request documentation suggestions through an authenticated Google Gemini API integration, with bounded non-sensitive context and source references. Distinguish implemented functionality from proposals.
 3. Allow edits only to approved Markdown paths such as `README.md` and explicit `docs/**/*.md` entries. Reject source code, workflows, scripts, configuration, symlinks, path traversal, and secrets.
 4. Validate factual accuracy, links, private-data leakage, unsupported claims and output limits. Store redacted audit receipts.
-5. Only after testing, approval and verification of a minimally privileged publisher, allow validated docs-only commits directly to `main` **if branch rules permit**. Never bypass protection or force push; abort on main SHA drift.
+5. After validation, submit documentation changes through a branch and pull request under the ADLC review and release gates. Never publish directly to main, bypass protection or force push; abort on source SHA drift.
 6. On failure, create/update a tracking issue rather than publishing. Prevent trigger loops.
 
 ## Activation gates
 - Confirm supported Gemini API authentication, model, privacy and quota/billing policies; configure a separate `GEMINI_API_KEY` secret.
 - Test allowed docs changes, rejected non-doc changes, secret detection, path traversal, stale SHA, concurrency, outages and repeated triggers.
-- Require human-reviewed implementation and validation before enabling direct-to-main publishing.
+- Require human-reviewed implementation and validation before enabling automated draft pull requests.
 
 **Status:** Design only. No Google Gemini API calls or automated documentation publishing are active.
+

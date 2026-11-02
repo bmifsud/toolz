@@ -1,0 +1,21 @@
+name: ADLC checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install fixture prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pytest gnupg sqlite3
+      - name: Run offline gate
+        run: bash tests/run-all-tests.sh

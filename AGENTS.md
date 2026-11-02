@@ -8,9 +8,10 @@ enable external model calls, or expand permissions without task-specific authori
 Use isolated fixtures for backup checks. Never point tests at production HOME, remotes or archives.
 For backup changes, run `python3 -m pytest backup/tests/ -q` after verifying prerequisites
 and isolation in [verification](docs/verification.md). Record skipped checks and failures.
-The legacy `tests/run-all-tests.sh` is not complete acceptance.
+Run `bash tests/run-all-tests.sh` for the maintained offline gate. It is not live acceptance.
 Verify paths exist before using commands in older docs; Android/bridge paths are absent
 from the main tree inspected on 2026-11-02.
 Follow the evidence and release gates in ADLC. No merge until required CI/reviews,
 authenticated emulator and tablet lifecycle tests, and both backup tiers' end-to-end
 evidence have passed. Never bypass protections or treat AI consensus as approval.
+
