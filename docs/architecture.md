@@ -25,3 +25,5 @@ Advisory scripts accept input and return external model suggestions. Review/reda
 ## Release policy
 
 Follow [ADLC](adlc/README.md) and [verification](verification.md). Authenticated emulator/tablet lifecycle and both backup tiers remain pending. Keep existing backup schedules and retention unchanged while collecting offline evidence.
+
+Offline planning validates known destination/permission/action combinations and boolean flags; malformed states are denied, ambiguous requests require clarification, and Debian destinations are preserved. These checks still do not authenticate callers or execute plans.
