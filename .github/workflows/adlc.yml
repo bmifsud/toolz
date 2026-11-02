@@ -18,4 +18,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y python3-pytest gnupg sqlite3
       - name: Run offline gate
-        run: bash tests/run-all-tests.sh
+        id: gate
+        env:
+          PYTEST_ADDOPTS: --junitxml=${{ runner.temp }}/adlc-evidence/tests.xml
+        run: |
+          mkdir -p "$RUNNER_TEMP/adlc-evidence"
+          bash tests/run-all-tests.sh
+      - name: Record tested revision
+        if: always()
+        env:
+          GATE_OUTCOME: ${{ steps.gate.outcome }}
+          EVIDENCE_DIRECTORY: ${{ runner.temp }}/adlc-evidence
+        run: |
+          python3 scripts/ci_receipt.py
+      - name: Preserve offline evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: adlc-offline-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adlc-evidence/
+          retention-days: 14
+          if-no-files-found: error
