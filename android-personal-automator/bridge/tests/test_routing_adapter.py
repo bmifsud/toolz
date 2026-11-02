@@ -30,5 +30,38 @@ class IntegrationBoundaryTests(unittest.TestCase):
     def test_local_only(self):
         self.assertEqual(plan_execution(route("Explain backups")).status, "local_only")
 
+class FailClosedPlanningTests(unittest.TestCase):
+    def test_ambiguous_request_requires_clarification(self):
+        self.assertEqual(plan_execution(route("Compare Debian and Termux")).status, "clarification_required")
+
+    def test_debian_destination_preserved(self):
+        decision = route("@Debian check disk")
+        for authenticated in (False, True):
+            plan = plan_execution(decision, "debian-disk", bridge_authenticated=authenticated)
+            self.assertEqual(plan.destination, "debian")
+
+    def test_unknown_permission_or_action_denied(self):
+        from request_router import Decision
+        for permission, action in (("unknown", "propose_diagnostic"), ("allowlisted_only", "execute"),
+                                   ("connector_scoped", "propose_connector")):
+            decision = Decision("termux", permission, action, "fixture")
+            plan = plan_execution(decision, "git-branch", bridge_authenticated=True)
+            self.assertEqual((plan.status, plan.operation), ("denied", None))
+
+    def test_truthy_nonboolean_flags_denied(self):
+        for value in ("false", 1, [], None):
+            with self.subTest(value=value):
+                for flags in ({"bridge_authenticated": value}, {"user_approved": value}):
+                    self.assertEqual(plan_execution(route("@Termux check cron"), "git-branch", **flags).status, "denied")
+
+    def test_malformed_inputs_denied(self):
+        for decision in (None, {}, object()):
+            self.assertEqual(plan_execution(decision).status, "denied")
+        self.assertEqual(plan_execution(route("@Termux check cron"), [], bridge_authenticated=True).status, "denied")
+
+    def test_unknown_destination_denied(self):
+        from request_router import Decision
+        self.assertEqual(plan_execution(Decision("shell", "none", "answer", "fixture")).status, "denied")
+
 if __name__ == "__main__":
     unittest.main()
