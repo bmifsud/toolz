@@ -36,3 +36,17 @@ Follow [Tier-1 acceptance](../backup/TIER1_DEPLOYMENT_ACCEPTANCE.md). Tier-2 req
 Do not run producers, restores, cleanup, retention apply, installers or service start/stop as harmless checks. A temporary workspace alone does not isolate restore: HOME, services and cloud configuration must also be separated. Preserve live schedules and retention.
 
 Never commit tokens, passphrases, credential files, raw environment dumps or private device logs. Record exact revision, environment, commands, expected/observed results and redacted artifacts. Required reviews/CI and all standing release gates remain mandatory.
+
+## Downloadable CI evidence
+
+Each ADLC run preserves an `adlc-offline-<run-id>-<attempt>` artifact for 14 days,
+even when the gate fails. `receipt.json` records the actual checkout HEAD, gate outcome,
+run identifiers and Python version. On PR runs, checkout HEAD can be a synthetic merge
+commit; it must not be mislabeled as the PR branch head. The run page supplies that association.
+
+`tests.xml` contains pytest JUnit results when pytest is reached. If setup, ADLC checks
+or shell syntax fail earlier, that report may be absent; inspect the receipt and run logs.
+An artifact existing is not a passing result. Neither JSON nor JUnit is a signed attestation.
+These artifacts contain fixture-only test output and must never be used with live credentials.
+No HOME/environment dump, provider key, archive or device screenshot is uploaded.
+Download evidence before retention expires if it is needed for a release record.
