@@ -33,10 +33,9 @@ Use [existing verification guidance](../verification.md) and
 Check commands and paths against the actual revision first.
 Unit tests, mocked uploads and green CI do not prove device or restoration behavior.
 
-The standing release hold remains until all evidence below is verified:
+Remote Desktop Commander is the selected device-access path (merged PR #123). No custom bridge recovery is planned. The standing release hold remains; the historical requirements below are unresolved and are not automatically waived by changing access mechanisms:
 
-- Bridge: authenticated connect, reconnect, cancel, restart and denied/security paths,
-  first on an emulator and then on the tablet.
+- Historical bridge/device lifecycle: authenticated connect, reconnect, cancel, restart and denied/security paths, first on an emulator and then on the tablet. Record how each applies to the Commander architecture before changing any gate; no pass is inferred from device discovery.
 - Tier-1: scheduled execution, encrypted upload with readback/integrity, and missed-run catch-up.
 - Tier-2: safe OmniRoute shutdown/WAL handling, encrypted snapshot/upload, isolated restore and integrity.
 - Required CI and human approvals apply to the final reviewed revision; blocking findings resolved.
@@ -56,7 +55,7 @@ Configure required checks in repository branch protection separately; no setting
 ## Current baseline
 
 The initial template PR #113 is merged. Current source contains backup tools and optional
-advisory clients; offline bridge planning/receipt modules are recovered, while Android and network/device execution remain absent. Documentation is reconciled
+advisory clients; offline planning/receipt modules route device work through Desktop Commander, while an in-repository Android app and custom network/device execution remain absent. Documentation is reconciled
 with this inventory. See [alignment intent](changes/adlc-alignment/intent.md),
 [evidence](changes/adlc-alignment/evidence.md) and [AI inventory](ai-components.md).
 Device/cloud operational acceptance remains pending.

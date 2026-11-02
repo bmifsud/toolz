@@ -14,7 +14,7 @@ This map reflects the source inventory inspected on 2026-11-02. Source presence 
 
 Offline routing/receipt modules have been recovered from pinned branch source (see [recovery evidence](adlc/changes/offline-bridge-recovery/evidence.md)). They classify requests, construct plans and validate receipt shape/correlation only. Debian launcher discovery never executes candidate files. Permission/authentication booleans are caller-supplied planning inputs, not enforced authentication. Receipt digests do not prove device origin. Receipt validation shares the planner's fixed host/Debian diagnostic allowlists. Device plans target Remote Desktop Commander, which must independently verify the selected device and authorization. No direct device bridge is planned or connected; request tracking remains required.
 
-Android app, proposal server, relay/controller/device, task queue and CLI adapters remain absent. Recover or integrate reviewed source through separate changes before documenting them as available.
+Android app, proposal server, custom relay/controller/device, task queue and CLI adapters remain absent. The selected access path is Remote Desktop Commander; do not recover obsolete custom-transport branches as part of this architecture. Any separate future capability requires its own scoped change and verification.
 
 ## Trust boundaries
 
