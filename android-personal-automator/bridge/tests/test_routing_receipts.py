@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 spec = importlib.util.spec_from_file_location("routing_receipts", Path(__file__).resolve().parents[1] / "routing_receipts.py")
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
@@ -38,6 +39,41 @@ class ReceiptTests(unittest.TestCase):
     def test_invalid_output(self):
         with self.assertRaises(ValueError):
             self.check({**self.payload, "stderr": None})
+
+class ReceiptBoundaryTests(unittest.TestCase):
+    setUp = ReceiptTests.setUp
+    check = ReceiptTests.check
+
+    def test_every_planned_diagnostic_has_receipt_support(self):
+        from routing_adapter import TERMUX_DIAGNOSTICS, DEBIAN_DIAGNOSTICS
+        self.assertEqual(module.VALID_DIAGNOSTICS, TERMUX_DIAGNOSTICS | DEBIAN_DIAGNOSTICS)
+        for diagnostic in module.VALID_DIAGNOSTICS:
+            with self.subTest(diagnostic=diagnostic):
+                payload = {**self.payload, "diagnostic": diagnostic}
+                self.assertEqual(self.check(payload, diagnostic=diagnostic).diagnostic, diagnostic)
+
+    def test_invalid_correlation_inputs(self):
+        for value in ("é" * 8, "x" * 65, "../bad", None, []):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self.check({**self.payload, "request_id": value})
+                with self.assertRaises(ValueError):
+                    self.check(request_id=value)
+                with self.assertRaises(ValueError):
+                    self.check({**self.payload, "diagnostic": value})
+                with self.assertRaises(ValueError):
+                    self.check(diagnostic=value)
+
+    def test_combined_utf8_byte_boundary(self):
+        payload = {**self.payload, "stdout": "é" * 8191, "stderr": "ab"}
+        self.assertEqual(self.check(payload).stderr, "ab")
+        with self.assertRaises(ValueError):
+            self.check({**payload, "stderr": "abc"})
+
+    def test_unpaired_surrogate_rejected(self):
+        for field in ("stdout", "stderr"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.check({**self.payload, field: chr(0xD800)})
 
 if __name__ == "__main__":
     unittest.main()
