@@ -17,3 +17,14 @@ final commit is identified by the PR head and must receive CI on that revision.
 No claim of full ADLC compliance, coverage, restored data integrity or release readiness.
 Branch protection and CI-required status are administration tasks, not established by YAML.
 Existing expected failures and any newly exposed failures must be triaged before release.
+
+## Post-merge verification
+
+Merged revision: 88f0f18cc77ec7e82aa134fd240e45c68a0a811c.
+[Main CI run](https://github.com/bmifsud/toolz/actions/runs/41449263942) completed successfully:
+75 passed, 2 xpassed in 24.92 seconds. The two unexpected passes are Tier-1 restore
+tests carrying obsolete expected-failure markers. Their removal is a separate reviewed change.
+This is fixture verification, not live restoration acceptance.
+
+Repository rulesets query returned an empty list on 2026-11-02. The branch-protection
+read returned HTTP 403 (integration lacks access), so branch protection remains unverified.
