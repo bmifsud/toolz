@@ -54,3 +54,19 @@ Download evidence before retention expires if it is needed for a release record.
 ## Desktop Commander routing
 
 Device planning targets `desktop_commander`. Legacy environment labels do not establish direct connections. The planner accepts `desktop_commander_available` only as a boolean hint; `ready_for_commander` is not execution or authentication evidence. Test rejected legacy destinations, unknown diagnostics, malformed flags and mutation denial. Standing release gates above remain unchanged; Desktop Commander use does not satisfy them automatically.
+
+## Current device-access boundary
+
+Remote Desktop Commander is the sole selected device-access mechanism, per merged
+[PR #123](https://github.com/bmifsud/toolz/pull/123). Do not start a custom Termux/Debian
+listener, recover an old relay/controller branch or use an alternate direct connection
+to satisfy current acceptance. Preserve backup paths, data, schedules and retention.
+
+Commander acceptance needs the explicitly selected device, exact installed checkout,
+bounded authorized commands, denial/failure cases and redacted results. Online status
+only proves discovery. A successful cloud copy or offline fixture restore does not
+prove production restoration. Record missing passphrase access or a running Debian
+rootfs as pending evidence rather than attempting an unapproved restore/snapshot.
+
+The inherited lifecycle/release hold remains unresolved. Document applicability to
+Commander explicitly; do not silently replace historical gates with online status.
