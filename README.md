@@ -57,3 +57,5 @@ pytest backup/tests/
 
 - [Current architecture and integration boundaries](docs/architecture.md)
 - [Installation prerequisites and verification map](docs/verification.md)
+
+- [ADLC workflow, templates and release ledger](docs/adlc/README.md)
