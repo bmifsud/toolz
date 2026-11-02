@@ -12,7 +12,9 @@ This map reflects the source inventory inspected on 2026-11-02. Source presence 
 | Advisory AI | [Perplexity](../scripts/perplexity_advisory.py), [Gemini](../scripts/gemini_docs_advisory.py) | Explicit CLI invocation calls external APIs; no publisher, executor or scheduled integration |
 | ADLC | [Workflow](adlc/README.md), [checker](../scripts/check_adlc.py) | Repository consistency checks; not authorization or compliance certification |
 
-Android app, proposal server, routing/receipt adapters, relay/controller/device, task queue and CLI adapters are not present in this source tree. Recover or integrate reviewed source through separate changes before documenting them as available.
+Offline routing/receipt modules have been recovered from pinned branch source (see [recovery evidence](adlc/changes/offline-bridge-recovery/evidence.md)). They classify requests, construct plans and validate receipt shape/correlation only. Debian launcher discovery never executes candidate files. Permission/authentication booleans are caller-supplied planning inputs, not enforced authentication. Receipt digests do not prove device origin. Debian plans exist but the receipt validator currently only accepts Termux diagnostic identifiers.
+
+Android app, proposal server, relay/controller/device, task queue and CLI adapters remain absent. Recover or integrate reviewed source through separate changes before documenting them as available.
 
 ## Trust boundaries
 

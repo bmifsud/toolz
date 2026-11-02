@@ -1,7 +1,7 @@
 # Toolz
 
 Toolz currently contains Termux/Andronix backup scripts, fixture tests and optional AI advisory clients.
-Android/bridge and CLI adapter implementations are absent from this revision. Their designs are not executable capabilities.
+Offline bridge routing/planning and receipt validation are available. The Android app, network bridge and CLI executors remain absent; plans do not execute actions.
 
 ## Start here
 

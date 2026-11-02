@@ -8,4 +8,4 @@ done
 python3 -m pytest --version >/dev/null || { echo 'Missing prerequisite: pytest' >&2; exit 1; }
 python3 scripts/check_adlc.py
 while IFS= read -r -d '' file; do bash -n "$file"; done < <(find backup tests -name '*.sh' -type f -print0)
-python3 -m pytest tests/ backup/tests/ -q
+python3 -m pytest tests/ backup/tests/ android-personal-automator/bridge/tests/ -q

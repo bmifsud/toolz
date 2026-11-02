@@ -56,7 +56,7 @@ Configure required checks in repository branch protection separately; no setting
 ## Current baseline
 
 The initial template PR #113 is merged. Current source contains backup tools and optional
-advisory clients; Android/bridge implementations remain absent. Documentation is reconciled
+advisory clients; offline bridge planning/receipt modules are recovered, while Android and network/device execution remain absent. Documentation is reconciled
 with this inventory. See [alignment intent](changes/adlc-alignment/intent.md),
 [evidence](changes/adlc-alignment/evidence.md) and [AI inventory](ai-components.md).
 Device/cloud operational acceptance remains pending.
