@@ -12,16 +12,16 @@ Python 3, pytest, Bash, GnuPG (`gpg`, `gpgconf`), SQLite CLI (`sqlite3`), GNU co
 bash tests/run-all-tests.sh
 ```
 
-Runs ADLC consistency/link validation, syntax checks for repository shell scripts, and pytest discovery in `tests/` and `backup/tests/`. It fails on errors and does not change executable bits. Advisory client tests mock external HTTP calls.
+Runs ADLC consistency/link validation, syntax checks for repository shell scripts, and pytest discovery in `tests/`, `backup/tests/` and `android-personal-automator/bridge/tests/`. It fails on errors and does not change executable bits. Advisory client tests mock external HTTP calls.
 
 Individual checks:
 
 ```bash
 python3 scripts/check_adlc.py
-python3 -m pytest tests/ backup/tests/ -q
+python3 -m pytest tests/ backup/tests/ android-personal-automator/bridge/tests/ -q
 ```
 
-`backup/test_full_flow.sh` remains a historical selected subset. `tests/test-backup.sh` is a legacy shell suite with different retention assumptions, excluded from the maintained gate. Neither is evidence of full live acceptance. There is no Android/bridge source here, so historical build/instrumentation commands do not apply.
+`backup/test_full_flow.sh` remains a historical selected subset. `tests/test-backup.sh` is a legacy shell suite with different retention assumptions, excluded from the maintained gate. Neither is evidence of full live acceptance. Only offline bridge routing/planning/receipt modules are present. Android build/instrumentation and network/device execution commands still do not apply.
 
 ## CI and limitations
 
