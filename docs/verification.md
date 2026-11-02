@@ -50,3 +50,17 @@ An artifact existing is not a passing result. Neither JSON nor JUnit is a signed
 These artifacts contain fixture-only test output and must never be used with live credentials.
 No HOME/environment dump, provider key, archive or device screenshot is uploaded.
 Download evidence before retention expires if it is needed for a release record.
+
+## Replay persistence tests
+
+The maintained gate includes the recovered host-only replay-store tests. Individually:
+
+```bash
+python3 -m unittest discover -s android-personal-automator/bridge/ws -p 'test_replay_store.py' -v
+```
+
+These use only disposable SQLite paths and cover duplicates/restart, capacity, concurrent
+claims, corruption, symlink/inode substitution and permission drift. They do not connect a
+relay or device and do not prove Termux/PRoot filesystem compatibility. Instantiating
+ReplayStore without an explicit fixture path would create private local state; do not do
+that during offline tests.

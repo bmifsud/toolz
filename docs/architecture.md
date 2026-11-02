@@ -27,3 +27,17 @@ Advisory scripts accept input and return external model suggestions. Review/reda
 Follow [ADLC](adlc/README.md) and [verification](verification.md). Authenticated emulator/tablet lifecycle and both backup tiers remain pending. Keep existing backup schedules and retention unchanged while collecting offline evidence.
 
 Offline planning validates known destination/permission/action combinations and boolean flags; malformed states are denied, ambiguous requests require clarification, and Debian destinations are preserved. These checks still do not authenticate callers or execute plans.
+
+## Persistent replay guard
+
+[ReplayStore](../android-personal-automator/bridge/ws/replay_store.py) is a recovered,
+unconnected Linux host component. It atomically claims IDs before future command execution,
+rejects duplicates after restart, and refuses new IDs at capacity without pruning.
+It checks private file/directory permissions and pins inode identities during its lifetime.
+
+It is not installed, called by a listener or evidence of authenticated transport. A future
+integration must authenticate first and claim the ID before starting any command.
+Claiming an ID is not transactional with command completion: retries after a crash may be
+denied even when no command completed. Same-UID state replacement before startup is not
+detectable without a separate trusted anchor. The implementation needs Linux /proc/self/fd,
+O_NOFOLLOW and O_DIRECTORY; tablet/PRoot behavior remains unverified.

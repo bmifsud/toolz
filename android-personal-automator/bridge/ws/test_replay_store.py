@@ -1,0 +1,137 @@
+"""Host-side replay persistence regressions; NOT emulator/device end-to-end."""
+import os
+import sqlite3
+import tempfile
+import unittest
+from pathlib import Path
+from replay_store import ReplayStore
+
+
+class ReplayStoreTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / "private" / "replay.sqlite3"
+        self.store = ReplayStore(self.path, max_ids=3)
+
+    def test_duplicate_rejected_before_and_after_restart(self):
+        self.assertTrue(self.store.claim("req_12345678"))
+        self.assertFalse(self.store.claim("req_12345678"))
+        restarted = ReplayStore(self.path, max_ids=3)
+        self.assertFalse(restarted.claim("req_12345678"))
+        self.assertTrue(restarted.claim("req_87654321"))
+
+    def test_capacity_fails_closed_without_pruning_old_ids(self):
+        for i in range(3):
+            self.assertTrue(self.store.claim(f"request_{i:08d}"))
+        self.assertFalse(self.store.claim("request_99999999"))
+        self.assertFalse(ReplayStore(self.path, max_ids=3).claim("request_99999999"))
+        with sqlite3.connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 3)
+
+    def test_reject_malformed_and_non_ascii_ids(self):
+        for value in (None, 1, "", "short", "a" * 65, "a" * 7 + "!", "é" * 8,
+                      "request id", "../request_123", "req/12345678"):
+            with self.subTest(value=value):
+                self.assertFalse(self.store.claim(value))
+        self.assertTrue(self.store.claim("Valid_ID-123"))
+
+    def test_database_corruption_fails_closed(self):
+        self.path.write_bytes(b"not a SQLite database")
+        with self.assertRaises(sqlite3.DatabaseError):
+            self.store.claim("req_12345678")
+
+    def test_permissions_private(self):
+        if os.name != "posix":
+            self.skipTest("POSIX permissions required")
+        self.assertEqual(self.path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.path.parent.stat().st_mode & 0o777, 0o700)
+
+    def test_symlink_database_rejected(self):
+        other = Path(self.tmp.name) / "other.sqlite3"
+        other.write_bytes(b"")
+        link = Path(self.tmp.name) / "link.sqlite3"
+        link.symlink_to(other)
+        with self.assertRaises(OSError):
+            ReplayStore(link)
+
+    def test_symlink_swap_after_initialization_fails_closed(self):
+        # An attacker with same-UID filesystem access must not redirect writes
+        # to another SQLite database after ReplayStore construction.
+        other = Path(self.tmp.name) / "other.sqlite3"
+        with sqlite3.connect(other) as db:
+            db.execute("CREATE TABLE requests (id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        self.path.rename(self.path.with_suffix(".saved"))
+        self.path.symlink_to(other)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(other) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_parent_directory_symlink_swap_fails_closed(self):
+        other = Path(self.tmp.name) / "other_private"
+        other.mkdir(mode=0o700)
+        with sqlite3.connect(other / "replay.sqlite3") as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        (other / "replay.sqlite3").chmod(0o600)
+        self.path.parent.rename(self.path.parent.with_name("private_saved"))
+        self.path.parent.symlink_to(other, target_is_directory=True)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(other / "replay.sqlite3") as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_same_owner_regular_file_swap_fails_closed_while_running(self):
+        self.assertTrue(self.store.claim("req_12345678"))
+        self.assertFalse(self.store.claim("req_12345678"))
+        self.path.rename(self.path.with_suffix(".saved"))
+        with sqlite3.connect(self.path) as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        self.path.chmod(0o600)
+        with self.assertRaisesRegex(OSError, "identity changed"):
+            self.store.claim("req_12345678")
+        with sqlite3.connect(self.path) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 0)
+
+    def test_same_owner_regular_directory_swap_fails_closed_while_running(self):
+        self.assertTrue(self.store.claim("req_12345678"))
+        saved = self.path.parent.with_name("private_saved")
+        self.path.parent.rename(saved)
+        replacement = self.path.parent
+        replacement.mkdir(mode=0o700)
+        with sqlite3.connect(replacement / "replay.sqlite3") as db:
+            db.execute("CREATE TABLE requests(id TEXT PRIMARY KEY, created_at INTEGER NOT NULL)")
+        (replacement / "replay.sqlite3").chmod(0o600)
+        with self.assertRaisesRegex(OSError, "replay directory permissions"):
+            self.store.claim("req_12345678")
+
+    def test_parent_directory_permission_drift_fails_closed(self):
+        self.path.parent.chmod(0o755)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_nonregular_file_swap_fails_closed(self):
+        self.path.unlink()
+        self.path.mkdir()
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_relaxed_permissions_after_initialization_fail_closed(self):
+        self.path.chmod(0o644)
+        with self.assertRaises(OSError):
+            self.store.claim("req_12345678")
+
+    def test_concurrent_same_id_claims_only_one_wins(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(self.store.claim, ["req_concurrent_123"] * 8))
+        self.assertEqual(sum(results), 1)
+
+    def test_invalid_capacity_rejected(self):
+        for value in (0, -1, True, 100_001):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                ReplayStore(self.path, max_ids=value)
+
+
+if __name__ == "__main__":
+    unittest.main()
