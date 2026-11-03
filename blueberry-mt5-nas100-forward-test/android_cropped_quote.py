@@ -48,6 +48,7 @@ def extract(path):
     for layout, row_crop, spread_crop in (
         ("split_screen", "crop=570:100:90:555", "crop=165:35:90:625,scale=660:140:flags=neighbor"),
         ("full_screen", "crop=620:105:95:550", "crop=170:35:95:625,scale=680:140:flags=neighbor"),
+        ("wide_quotes", "crop=690:110:90:550", "crop=165:35:90:625,scale=660:140:flags=neighbor"),
     ):
         try:
             row_text = recognize(row_crop, 6)
