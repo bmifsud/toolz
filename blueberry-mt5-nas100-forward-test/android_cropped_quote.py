@@ -24,7 +24,7 @@ def parse_text(text, spread_text=None):
         raise ValueError("Bid, ask, or MT5 spread not recognized")
     bid, ask = (Decimal(x) for x in match.groups())
     points = int(spread.group(1))
-    if bid <= 0 or ask <= bid or points <= 0 or (ask-bid)*100 != points:
+    if not bid.is_finite() or not ask.is_finite() or bid <= 0 or ask <= bid or points <= 0 or (ask-bid)*100 != points:
         raise ValueError("Spread mismatch")
     return {"symbol": "NAS100", "bid": str(bid), "ask": str(ask),
             "spread_mt5_points": points, "spread_price_units": str(ask-bid),
@@ -59,8 +59,7 @@ def extract(path):
             if not spread_clock:
                 raise ValueError("Missing clock in spread crop")
             if spread_clock.group(0) != result["mt5_display_clock_unzoned"]:
-                result["mt5_display_clock_unzoned"] = spread_clock.group(0)
-                result["clock_ocr_disagreement"] = True
+                raise ValueError("Display clocks disagree")
             result["layout_candidate"] = layout
             candidates.append(result)
         except ValueError:
