@@ -1,12 +1,17 @@
 {
   "initial_equity_eur": 500.0,
   "instrument": "NAS100_CFD",
-  "note": "Blueberry MT5 broker specification for NAS100 CFD vs NQ futures mismatch. Fail-closed on unknown spread, slippage, lot-size, and contract-value.",
-  "spread": null,
-  "slippage": null,
-  "min_lot": null,
-  "contract_value": null,
+  "note": "Blueberry MT5 broker specification for NAS100 CFD. Contract size 10, min lot 0.01, volume step 0.01, USD profit/margin currency, floating spread (user-observed 122 MT5 points with digits=2 = 1.22 index units), slippage configurable/unverified, USD swap long -57.8 and short +7.7 per night per lot (unverified frequency/units), initial paper capital EUR 500. Fail-closed on missing historical FX rates.",
+  "spread": 1.22,
+  "slippage": 0.1,
+  "min_lot": 0.01,
+  "volume_step": 0.01,
+  "contract_size": 10.0,
+  "commission_per_lot": 0.0,
+  "swap_usd_long_per_night": -57.8,
+  "swap_usd_short_per_night": +7.7,
   "fail_closed_unknown_costs": true,
+  "fail_closed_missing_fx": true,
   "risk_management": {
     "stop_loss_pct": 0.01,
     "take_profit_pct": 0.02,
@@ -18,4 +23,6 @@
     "lookback_options": [3, 5, 10]
   }
 }
+
+
 

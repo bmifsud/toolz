@@ -2,7 +2,9 @@
 """
 NAS100 Day Trading Backtesting Engine
 --------------------------------------------------
-Shared bias-controlled chronological walk-forward backtesting engine.
+Shared bias-controlled chronological walk-forward backtesting engine with EUR-only reporting
+and accounting, historical point-in-time USD/EUR conversion, fail-closed missing FX handling,
+contract size 10, min lot 0.01, and no-lookahead execution.
 """
 
 import sys
@@ -18,8 +20,8 @@ EDUCATIONAL_DISCLAIMER = (
     "EDUCATIONAL & RISK DISCLAIMER:\n"
     "This software is an educational simulation framework for quantitative trading research.\n"
     "Trading CFDs, futures, and leveraged financial instruments involves substantial risk of loss.\n"
-    "Operates offline with simulated EUR 500 paper capital. Fail-closed on unknown broker specs.\n"
-    "No live trades, real credentials, or network model calls are made.\n"
+    "Operates offline with simulated EUR 500 paper capital. Fail-closed on unknown broker specs and missing historical FX.\n"
+    "No live trades, real credentials, or network model calls are made. No unsupported broker-accurate claims.\n"
     f"{DISCLAIMER_HEADER}"
 )
 
@@ -103,19 +105,37 @@ def check_broker_specs(config):
     spread = config.get("spread")
     slippage = config.get("slippage")
     min_lot = config.get("min_lot")
-    contract_value = config.get("contract_value")
+    contract_size = config.get("contract_size", config.get("contract_value"))
     unknown_fields = []
     if spread is None: unknown_fields.append("spread")
     if slippage is None: unknown_fields.append("slippage")
     if min_lot is None: unknown_fields.append("min_lot")
-    if contract_value is None: unknown_fields.append("contract_value")
+    if contract_size is None: unknown_fields.append("contract_size")
     if unknown_fields and fail_closed:
         raise ValueError(
             f"FAIL-CLOSED: Unknown broker specifications detected: {unknown_fields}. "
-            "Broker spec requires explicit spread, slippage, min_lot, and contract_value "
-            "to simulate monetary trades (NAS100 CFD vs NQ futures specification)."
+            "Broker spec requires explicit spread, slippage, min_lot, and contract_size "
+            "to simulate monetary trades (NAS100 CFD specification)."
         )
     return unknown_fields
+
+def get_historical_fx_rate(dt, config):
+    fx_rates = config.get("historical_fx_rates", {})
+    fail_closed = config.get("fail_closed_missing_fx", True)
+    date_str = dt.strftime("%Y-%m-%d") if isinstance(dt, datetime) else str(dt)[:10]
+    full_str = dt.strftime("%Y-%m-%d %H:%M:%S") if isinstance(dt, datetime) else str(dt)
+    
+    if full_str in fx_rates:
+        return float(fx_rates[full_str])
+    if date_str in fx_rates:
+        return float(fx_rates[date_str])
+    
+    if fail_closed:
+        raise ValueError(
+            f"FAIL-CLOSED: Missing historical USD/EUR FX rate for timestamp '{full_str}' (date '{date_str}'). "
+            "Silent fixed current FX fallback prohibited."
+        )
+    return 1.08
 
 def compute_momentum_signal(prices, lookback):
     if len(prices) <= lookback:
@@ -127,16 +147,36 @@ def compute_momentum_signal(prices, lookback):
     return 0
 
 
-def run_strategy_simulation(data, strategy_type, lookback=5, forecasts=None, stop_loss_pct=0.01, take_profit_pct=0.02):
+def run_strategy_simulation(data, strategy_type, lookback=5, forecasts=None, stop_loss_pct=0.01, take_profit_pct=0.02, config=None):
     if not data:
-        return {"trades": 0, "wins": 0, "win_rate": 0.0, "final_equity": 1.0, "return_pct": 0.0, "equity_curve": [1.0]}
-    equity = 1.0
+        return {"trades": 0, "wins": 0, "win_rate": 0.0, "final_equity": 500.0, "return_pct": 0.0, "equity_curve": [500.0]}
+    
+    if config is None:
+        config = {
+            "initial_equity_eur": 500.0,
+            "contract_size": 10.0,
+            "min_lot": 0.01,
+            "spread": 0.5,
+            "slippage": 0.1,
+            "fail_closed_missing_fx": False
+        }
+    
+    initial_equity = float(config.get("initial_equity_eur", 500.0))
+    equity = initial_equity
     equity_curve = [equity]
     trades = 0
     wins = 0
     closes = [bar["close"] for bar in data]
+    
+    contract_size = float(config.get("contract_size", 10.0))
+    min_lot = float(config.get("min_lot", 0.01))
+    spread = float(config.get("spread", 0.5))
+    slippage = float(config.get("slippage", 0.1))
+    
     position = 0
     entry_price = 0.0
+    volume = min_lot
+    pending_signal = 0
     
     for i in range(len(data)):
         bar = data[i]
@@ -146,6 +186,26 @@ def run_strategy_simulation(data, strategy_type, lookback=5, forecasts=None, sto
         lo = bar["low"]
         cl = bar["close"]
         
+        # 1. Execute pending signal at open of bar i (NO LOOKAHEAD: signal from bar i-1 executed at bar i open)
+        if pending_signal != 0 and position == 0:
+            position = pending_signal
+            entry_price = op + (slippage if position == 1 else -slippage)
+            pending_signal = 0
+        elif pending_signal != 0 and position != 0 and pending_signal != position:
+            exit_price = op - (slippage if position == 1 else slippage)
+            price_diff = (exit_price - entry_price) if position == 1 else (entry_price - exit_price)
+            pnl_usd = (price_diff * volume * contract_size) - (spread * volume * contract_size)
+            fx_rate = get_historical_fx_rate(dt, config)
+            pnl_eur = pnl_usd / fx_rate
+            equity += pnl_eur
+            if pnl_eur > 0: wins += 1
+            trades += 1
+            
+            position = pending_signal
+            entry_price = op + (slippage if position == 1 else -slippage)
+            pending_signal = 0
+
+        # 2. Check stop loss / take profit / exit for active position during bar i
         if position != 0:
             sl_price = entry_price * (1.0 - stop_loss_pct) if position == 1 else entry_price * (1.0 + stop_loss_pct)
             tp_price = entry_price * (1.0 + take_profit_pct) if position == 1 else entry_price * (1.0 - take_profit_pct)
@@ -163,15 +223,20 @@ def run_strategy_simulation(data, strategy_type, lookback=5, forecasts=None, sto
                 if hit_sl or hit_tp:
                     exit_price = sl_price if hit_sl else tp_price
                     exited = True
+            
             if exited:
-                ret = (exit_price - entry_price) / entry_price if position == 1 else (entry_price - exit_price) / entry_price
-                equity *= (1.0 + ret)
-                if ret > 0: wins += 1
+                price_diff = (exit_price - entry_price) if position == 1 else (entry_price - exit_price)
+                pnl_usd = (price_diff * volume * contract_size) - (spread * volume * contract_size)
+                fx_rate = get_historical_fx_rate(dt, config)
+                pnl_eur = pnl_usd / fx_rate
+                equity += pnl_eur
+                if pnl_eur > 0: wins += 1
                 trades += 1
                 position = 0
                 equity_curve.append(equity)
                 continue
-                
+
+        # 3. Compute signal on close of bar i for NEXT bar execution (no lookahead)
         current_closes = closes[:i+1]
         signal = 0
         if strategy_type == "flat":
@@ -187,36 +252,47 @@ def run_strategy_simulation(data, strategy_type, lookback=5, forecasts=None, sto
             else:
                 signal = base_sig
                 
-        if position == 0 and signal != 0:
-            position = signal
-            entry_price = op
-        elif position != 0 and signal == 0:
-            ret = (cl - entry_price) / entry_price if position == 1 else (entry_price - cl) / entry_price
-            equity *= (1.0 + ret)
-            if ret > 0: wins += 1
+        if position != 0 and signal == 0:
+            exit_price = cl
+            price_diff = (exit_price - entry_price) if position == 1 else (entry_price - exit_price)
+            pnl_usd = (price_diff * volume * contract_size) - (spread * volume * contract_size)
+            fx_rate = get_historical_fx_rate(dt, config)
+            pnl_eur = pnl_usd / fx_rate
+            equity += pnl_eur
+            if pnl_eur > 0: wins += 1
             trades += 1
             position = 0
         elif position != 0 and signal != 0 and signal != position:
-            ret = (op - entry_price) / entry_price if position == 1 else (entry_price - op) / entry_price
-            equity *= (1.0 + ret)
-            if ret > 0: wins += 1
+            exit_price = cl
+            price_diff = (exit_price - entry_price) if position == 1 else (entry_price - exit_price)
+            pnl_usd = (price_diff * volume * contract_size) - (spread * volume * contract_size)
+            fx_rate = get_historical_fx_rate(dt, config)
+            pnl_eur = pnl_usd / fx_rate
+            equity += pnl_eur
+            if pnl_eur > 0: wins += 1
             trades += 1
-            position = signal
-            entry_price = op
+            position = 0
+            pending_signal = signal
+        elif position == 0 and signal != 0:
+            pending_signal = signal
+
         equity_curve.append(equity)
         
     if position != 0:
         final_cl = closes[-1]
-        ret = (final_cl - entry_price) / entry_price if position == 1 else (entry_price - final_cl) / entry_price
-        equity *= (1.0 + ret)
-        if ret > 0: wins += 1
+        price_diff = (final_cl - entry_price) if position == 1 else (entry_price - final_cl)
+        pnl_usd = (price_diff * volume * contract_size) - (spread * volume * contract_size)
+        fx_rate = get_historical_fx_rate(data[-1]["datetime"], config)
+        pnl_eur = pnl_usd / fx_rate
+        equity += pnl_eur
+        if pnl_eur > 0: wins += 1
         trades += 1
         position = 0
         equity_curve.append(equity)
         
     return {
         "trades": trades, "wins": wins, "win_rate": (wins / trades) if trades > 0 else 0.0,
-        "final_equity": equity, "return_pct": (equity - 1.0) * 100.0, "equity_curve": equity_curve
+        "final_equity": equity, "return_pct": ((equity - initial_equity) / initial_equity) * 100.0, "equity_curve": equity_curve
     }
 
 def run_backtest(data, config, forecasts=None):
@@ -243,15 +319,15 @@ def run_backtest(data, config, forecasts=None):
         best_lookback = lookback_options[0]
         best_train_perf = -float("inf")
         for lb in lookback_options:
-            res = run_strategy_simulation(train_data, "momentum", lookback=lb, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
+            res = run_strategy_simulation(train_data, "momentum", lookback=lb, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, config=config)
             if res["return_pct"] > best_train_perf:
                 best_train_perf = res["return_pct"]
                 best_lookback = lb
                 
-        flat_res = run_strategy_simulation(test_data, "flat", stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
-        mom_fixed_res = run_strategy_simulation(test_data, "momentum", lookback=5, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
-        mom_tuned_res = run_strategy_simulation(test_data, "momentum", lookback=best_lookback, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct)
-        timesfm_res = run_strategy_simulation(test_data, "timesfm_overlay", lookback=best_lookback, forecasts=forecasts, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct) if forecasts else None
+        flat_res = run_strategy_simulation(test_data, "flat", stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, config=config)
+        mom_fixed_res = run_strategy_simulation(test_data, "momentum", lookback=5, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, config=config)
+        mom_tuned_res = run_strategy_simulation(test_data, "momentum", lookback=best_lookback, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, config=config)
+        timesfm_res = run_strategy_simulation(test_data, "timesfm_overlay", lookback=best_lookback, forecasts=forecasts, stop_loss_pct=stop_loss_pct, take_profit_pct=take_profit_pct, config=config) if forecasts else None
         
         folds.append({
             "train_start_dt": train_data[0]["datetime"], "train_end_dt": train_data[-1]["datetime"],
@@ -263,7 +339,7 @@ def run_backtest(data, config, forecasts=None):
     return folds
 
 def main():
-    parser = argparse.ArgumentParser(description="NAS100 Day Trading Backtesting Engine")
+    parser = argparse.ArgumentParser(description="NAS100 Day Trading Backtesting Engine (EUR-only Reporting)")
     parser.add_argument("data_csv", help="Path to historical price data CSV")
     parser.add_argument("--config", default="config/blueberry-mt5.json", help="Path to broker config JSON")
     parser.add_argument("--forecasts", default=None, help="Optional causal TimesFM forecasts CSV")
@@ -294,20 +370,19 @@ def main():
         sys.exit(1)
         
     print("\n" + "=" * 78)
-    print("BACKTEST RESULTS SUMMARY (EUR 500 Paper Capital)")
+    print("BACKTEST RESULTS SUMMARY (EUR-only Reporting, €500 Paper Capital)")
     print("=" * 78)
     print(f"Total Folds: {len(folds)}")
     for idx, fold in enumerate(folds, 1):
         print(f"\n--- Fold {idx} ---")
         print(f"Train: {fold['train_start_dt']} to {fold['train_end_dt']} | Test: {fold['test_start_dt']} to {fold['test_end_dt']}")
         print(f"Tuned Lookback: {fold['tuned_lookback']}")
-        print(f"  [Flat] Return: {fold['flat']['return_pct']:+.2f}% | Trades: {fold['flat']['trades']}")
-        print(f"  [Momentum 5] Return: {fold['momentum_fixed_5']['return_pct']:+.2f}% | Trades: {fold['momentum_fixed_5']['trades']}")
-        print(f"  [Momentum Tuned] Return: {fold['momentum_tuned']['return_pct']:+.2f}% | Trades: {fold['momentum_tuned']['trades']}")
+        print(f"  [Flat] Return: {fold['flat']['return_pct']:+.2f}% | Final Equity: €{fold['flat']['final_equity']:.2f} | Trades: {fold['flat']['trades']}")
+        print(f"  [Momentum 5] Return: {fold['momentum_fixed_5']['return_pct']:+.2f}% | Final Equity: €{fold['momentum_fixed_5']['final_equity']:.2f} | Trades: {fold['momentum_fixed_5']['trades']}")
+        print(f"  [Momentum Tuned] Return: {fold['momentum_tuned']['return_pct']:+.2f}% | Final Equity: €{fold['momentum_tuned']['final_equity']:.2f} | Trades: {fold['momentum_tuned']['trades']}")
         if fold['timesfm_overlay']:
-            print(f"  [TimesFM Overlay] Return: {fold['timesfm_overlay']['return_pct']:+.2f}% | Trades: {fold['timesfm_overlay']['trades']}")
+            print(f"  [TimesFM Overlay] Return: {fold['timesfm_overlay']['return_pct']:+.2f}% | Final Equity: €{fold['timesfm_overlay']['final_equity']:.2f} | Trades: {fold['timesfm_overlay']['trades']}")
     print("=" * 78)
 
 if __name__ == "__main__":
     main()
-
