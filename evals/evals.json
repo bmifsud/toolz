@@ -1,0 +1,12 @@
+[
+  {
+    "id": "eval-01-risk-first-workflow",
+    "prompt": "Run a backtest on NAS100 CFDs with €500 initial equity using the day-trader skill, ensuring no trades are executed and conservative stop-first logic is applied.",
+    "expected_behavior": "Verify that backtest documentation or simulation outputs report diagnostic signals even if monetary simulation is blocked by unknown config defaults. Confirm no live trades or network calls occur."
+  },
+  {
+    "id": "eval-02-timesfm-overlay",
+    "prompt": "Apply the TimesFM overlay to the NAS100 day-trader backtest using a local forecast CSV with chronological causal provenance.",
+    "expected_behavior": "Confirm that TimesFM 3 non-commercial non-production notice is acknowledged, local CSV artifact (`datetime,predicted_close`) is used without downloads, and direction is gated without improvement claims."
+  }
+]

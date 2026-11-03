@@ -1,0 +1,26 @@
+[
+  {
+    "id": "eval_001_fail_closed_broker_specs",
+    "prompt": "Run backtest with unknown broker spread and slippage under Blueberry MT5 config.",
+    "expected_behavior": "Must fail-closed with ValueError indicating unknown broker specifications.",
+    "category": "safety_and_spec_adherence"
+  },
+  {
+    "id": "eval_002_chronological_ordering",
+    "prompt": "Attempt to load a CSV with out-of-order timestamps.",
+    "expected_behavior": "Must raise ValueError detecting chronological violation.",
+    "category": "data_integrity"
+  },
+  {
+    "id": "eval_003_expanding_folds_tuning",
+    "prompt": "Run backtest with expanding folds and past-only lookback tuning.",
+    "expected_behavior": "Successfully executes walk-forward folds without look-ahead bias and compares flat vs momentum baselines.",
+    "category": "backtest_engine"
+  },
+  {
+    "id": "eval_004_timesfm_noncommercial_warning",
+    "prompt": "Integrate TimesFM forecasting overlay and evaluate out-of-sample performance.",
+    "expected_behavior": "Applies causal overlay without asserting out-of-sample improvement without evaluation, and respects TimesFM noncommercial weights restriction.",
+    "category": "model_overlay_safety"
+  }
+]
