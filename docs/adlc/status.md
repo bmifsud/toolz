@@ -1,44 +1,47 @@
 # ADLC release ledger
 
-Updated 2026-11-03 against main `338889249cd0aaa0bd1792a152dd24ff97d41c1f`.
-See the [policy evidence record](changes/policy-evidence-20261103/evidence.md).
+Updated 2026-11-03 against main `356d3c12750882c5520d909c912f9efba86cfaa0`.
+See [policy evidence](changes/policy-evidence-20261103/evidence.md) and the newer
+[conformance and resilience record](changes/conformance-resilience-20261103/evidence.md).
 
 | Workstream | Phase | Status | Evidence / next action |
 | --- | --- | --- | --- |
-| ADLC audit implementation | Implement | Merged | [PR #141](https://github.com/bmifsud/toolz/pull/141), reviewed source head `9a7772b38e5cda4fc984b0f98d064ca440e3b48d`; merge is not approval evidence |
-| Merged revision verification | Verify | Offline passed | [Main CI](https://github.com/bmifsud/toolz/actions/runs/41587424340), receipt matches main SHA above; 134 tests, zero failures/errors/skips |
-| Required review evidence | Verify | Missing | PR #141 review endpoint returned an empty list; independent approval not established |
-| Branch protection | Verify | Control absent | Main protection endpoint returned HTTP 404 “Branch not protected”; repository rulesets returned an empty list; settings unchanged |
+| ADLC audit implementation | Implement | Merged | [PR #141](https://github.com/bmifsud/toolz/pull/141); implementation is distinct from human approval |
+| Current-main verification | Verify | Offline passed | [Main CI](https://github.com/bmifsud/toolz/actions/runs/41589158363) passed; local isolated full gate passed 153 tests on the baseline above |
+| Required review | Verify | Enforced; approval pending | One approving review and latest-push approval required; stale reviews dismissed. Self/model review is not independent human approval |
+| Main protection | Verify | Verified | Strict `offline` check bound to GitHub Actions app 15368; administrator enforcement, resolved conversations, no force pushes/deletion |
+| Release hold | Release | Enforced | Main is read-only locked. Do not unlock as a retry/recovery action or to merge this documentation |
+| Resilience mechanisms | Verify | Offline verified | Existing watchdog/supervisor: 19 fixture tests passed. Live session adoption/recovery is not established by those tests |
 | Device-access architecture | Implement | Commander selected | [PR #123](https://github.com/bmifsud/toolz/pull/123); no custom direct-device bridge recovery |
-| Commander lifecycle/security | Verify | Pending | Read-only access observed; authenticated disconnect/reconnect/cancel/restart/denial acceptance not verified; coordinate separate emulator/tablet work |
-| Tier-1 | Verify | Pending | [Issue #105](https://github.com/bmifsud/toolz/issues/105) and [#106](https://github.com/bmifsud/toolz/issues/106); live integrity/restore and scheduled/catch-up evidence incomplete |
-| Tier-2 selected workflow | Plan / Verify | Pending | User-selected Andronix Backup Debian + Google Drive needs implementation/acceptance evidence; existing snapshot scripts do not establish the replacement workflow |
-| Release | Release | Blocked | Protection/review controls, operational gates and accountable release decision remain unresolved |
+| Commander lifecycle/security | Verify | Pending | Authenticated reconnect, cancellation, restart and denial paths require separate accepted emulator/tablet evidence |
+| Tier-1 | Verify | Pending | [#105](https://github.com/bmifsud/toolz/issues/105), [#106](https://github.com/bmifsud/toolz/issues/106): revision-bound live integrity/restore and scheduled/catch-up evidence incomplete |
+| Tier-2 selected workflow | Plan / Verify | Pending | Requested Andronix Backup Debian + Google Drive workflow requires implementation/acceptance evidence; old snapshot fixtures do not prove it |
+| Overall operational conformance | Release | Blocked | Live acceptance, actual independent approval and accountable release decision are not yet verified |
 
 ## Evidence boundaries
 
-The current CI receipt explicitly records **offline fixtures only**, with device/live-backup
-acceptance unverified. It is not signed origin proof or human approval.
+Main protection was enabled during earlier user-directed conformity work and has now
+been independently read back. This ledger update performs no settings changes.
+The dated [control snapshot](changes/conformance-resilience-20261103/branch-controls.json)
+is an observation, not a signed attestation or permanent guarantee against later drift.
 
-Existing device records from 2026-11-02 separately show an offline run with 119 tests
-passing and an older installed-checkout run exiting 1 with four failures, 36 passes and
-two expected failures. A decryption-error indication is also present. Those temporary
-records are not fresh acceptance of the merged revision and are not durable release
-evidence. Do not infer a regression in current main or a successful live restore from them.
-
-Desktop Commander is the access mechanism. Preserve backup data, paths, schedules and
-retention. The selected Tier-2 redesign does not silently waive consistency, cloud
-readback, isolated recovery, or inherited lifecycle requirements.
+The [test summaries](changes/conformance-resilience-20261103/test-summaries.json) retain
+the inspected JUnit counts and SHA-256 digests. Raw local logs are temporary; the hashes
+and summaries do not independently prove real-device or live-backup behavior.
+Older installed-checkout failures are historical and are not labeled current-main failures.
 
 ## Required next actions
 
-- Obtain authorized repository-settings work to enforce PR review and the observed
-  `offline` CI check on the final reviewed revision. This record does not enable controls.
-- Record independent approval and reviewed revision; do not retroactively assert it.
-- Verify Commander lifecycle/security through the approved separate device work.
-- Capture revision-bound Tier-1 scheduling/upload/readback/catch-up/restore evidence.
-- Establish the selected Andronix Tier-2 workflow and its safe consistency, upload/readback,
-  and isolated recovery evidence before treating that gate as satisfied.
+- Keep main locked while operational acceptance remains incomplete. No automatic rollback
+  to the prior unprotected state is permitted.
+- Obtain actual independent review of the final revision. Do not manufacture approval or
+  substitute AI consensus.
+- Complete the separately owned Commander/emulator/tablet acceptance work without launching
+  duplicate runners or disturbing another worktree.
+- Verify current Tier-1 and selected Andronix Tier-2 operations with revision-bound,
+  redacted upload/readback, scheduling/catch-up and isolated recovery evidence.
+- Enable live recovery only after explicit ownership transfer, approved adapters and the
+  [resilience integration requirements](resilience.md) are verified.
 
-No settings, live-device, backup, restore, schedule or retention operations are authorized
-by this ledger. Release remains blocked; missing evidence stays missing.
+Backup data, schedules, retention and credentials are unchanged by this record.
+Passing offline tests and enforcing the hold are progress, not full operational conformity.

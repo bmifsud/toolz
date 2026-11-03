@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "tested_source_commit": "356d3c12750882c5520d909c912f9efba86cfaa0",
+  "scope": "offline fixtures only",
+  "environment": "cleared inherited environment; explicit PATH and temporary HOME/TMPDIR/GNUPGHOME",
+  "reports": [
+    {
+      "report": "resilience.xml",
+      "command": "python3 -m pytest automation/cline-watchdog/ -q",
+      "exit_code": 0,
+      "sha256": "37498468a6b17b2f6a517dee228541d3d0242d7edded9b7dc444f2a8b6da9381",
+      "suites": [
+        {
+          "tests": 19,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "reported_seconds": "4.412",
+          "reported_timestamp": "2026-11-03T07:33:16.982586+01:00"
+        }
+      ]
+    },
+    {
+      "report": "full.xml",
+      "command": "bash tests/run-all-tests.sh",
+      "exit_code": 0,
+      "sha256": "9299df8286f21bbd196e054ebcbe7fe2abba5c519f2bafcc025d534d3eabe271",
+      "suites": [
+        {
+          "tests": 153,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "reported_seconds": "64.701",
+          "reported_timestamp": "2026-11-03T07:33:24.807974+01:00"
+        }
+      ]
+    }
+  ],
+  "raw_report_retention": "temporary host paths; no durable raw-log retention or signed origin proof claimed",
+  "live_acceptance": "unverified"
+}
