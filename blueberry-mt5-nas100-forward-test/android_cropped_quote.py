@@ -13,12 +13,12 @@ SPREAD = re.compile(r"\b(\d{1,5})\s+L:")
 DISPLAY_CLOCK = re.compile(r"\b([01]\d|2[0-3]):[0-5]\d:[0-5]\d\b")
 WIDTH, HEIGHT = 1200, 1920
 
-def parse_text(text):
+def parse_text(text, spread_text=None):
     rows = [line for line in text.splitlines() if "NAS100" in line.upper()]
     if len(rows) != 1:
         raise ValueError("Missing or ambiguous NAS100 row")
     match = ROW.search(rows[0])
-    spread = SPREAD.search(text)
+    spread = SPREAD.search(text) if spread_text is None else re.search(r"\b(\d{1,5})\s*$", spread_text.strip())
     clock = DISPLAY_CLOCK.search(text)
     if not match or not spread or not clock:
         raise ValueError("Bid, ask, or MT5 spread not recognized")
@@ -41,7 +41,15 @@ def extract(path):
     ocr = subprocess.run(["tesseract","stdin","stdout","--psm","6"],
                          input=crop.stdout,capture_output=True,timeout=15,
                          env=__import__("os").environ | {"OMP_THREAD_LIMIT":"1"},check=True)
-    return parse_text(ocr.stdout.decode("utf-8",errors="replace"))
+    spread_crop = subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-i",str(path),
+                                  "-vf","crop=165:35:90:625,scale=660:140:flags=neighbor",
+                                  "-f","image2pipe","-vcodec","png","-"],
+                                 capture_output=True,timeout=15,check=True)
+    spread_ocr = subprocess.run(["tesseract","stdin","stdout","--psm","7"],
+                                input=spread_crop.stdout,capture_output=True,timeout=15,
+                                env=__import__("os").environ | {"OMP_THREAD_LIMIT":"1"},check=True)
+    return parse_text(ocr.stdout.decode("utf-8",errors="replace"),
+                      spread_ocr.stdout.decode("utf-8",errors="replace"))
 
 def main():
     p=argparse.ArgumentParser()
