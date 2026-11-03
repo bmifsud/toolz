@@ -1,0 +1,6 @@
+{
+  "state_dir": "/home/b/.local/state/toolz-cline-watchdog",
+  "working_directory": "/home/b/toolz-android-emulator",
+  "stale_seconds": 900,
+  "recovery_command": []
+}

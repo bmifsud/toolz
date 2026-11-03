@@ -5,7 +5,8 @@ Handles reading tick / bar data with bid, ask, timestamps, and volume.
 
 import csv
 import logging
-from datetime import datetime
+import math
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger("blueberry_data_ingestion")
@@ -34,6 +35,7 @@ class DataIngestion:
                             # Unix timestamp or similar
                             dt = datetime.fromtimestamp(float(ts_str))
                         else:
+                            dt = None
                             for fmt in ("%Y-%m-%d %H:%M:%S", "%Y.%m.%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f", "%Y.%m.%d %H:%M:%S.%f"):
                                 try:
                                     dt = datetime.strptime(ts_str, fmt)
@@ -41,10 +43,14 @@ class DataIngestion:
                                 except ValueError:
                                     continue
                             else:
-                                dt = datetime.now()
+                                continue
                     except Exception:
-                        dt = datetime.now()
+                        continue
 
+                    if dt is None:
+                        continue
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
                     symbol = normalized_row.get("symbol", normalized_row.get("ticker", "NAS100")).upper()
 
                     try:
@@ -53,7 +59,7 @@ class DataIngestion:
                     except ValueError:
                         continue
 
-                    if bid <= 0 or ask <= 0:
+                    if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0 or ask < bid:
                         continue
 
                     volume = float(normalized_row.get("volume", normalized_row.get("vol", 1.0)))
