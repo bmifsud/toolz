@@ -10,6 +10,7 @@ import sys
 PRICE = r"(\d{4,6}\.\d{2})"
 ROW = re.compile(r"\bNAS100\s+" + PRICE + r"\s+" + PRICE + r"\b")
 SPREAD = re.compile(r"\b(\d{1,5})\s+L:")
+DISPLAY_CLOCK = re.compile(r"\b([01]\d|2[0-3]):[0-5]\d:[0-5]\d\b")
 WIDTH, HEIGHT = 1200, 1920
 
 def parse_text(text):
@@ -18,7 +19,8 @@ def parse_text(text):
         raise ValueError("Missing or ambiguous NAS100 row")
     match = ROW.search(rows[0])
     spread = SPREAD.search(text)
-    if not match or not spread:
+    clock = DISPLAY_CLOCK.search(text)
+    if not match or not spread or not clock:
         raise ValueError("Bid, ask, or MT5 spread not recognized")
     bid, ask = (Decimal(x) for x in match.groups())
     points = int(spread.group(1))
@@ -26,6 +28,7 @@ def parse_text(text):
         raise ValueError("Spread mismatch")
     return {"symbol": "NAS100", "bid": str(bid), "ask": str(ask),
             "spread_mt5_points": points, "spread_price_units": str(ask-bid),
+            "mt5_display_clock_unzoned": clock.group(0), "broker_timezone_verified": False,
             "status": "OCR_SINGLE_CAPTURE_UNVERIFIED", "tradable": False}
 
 def extract(path):
