@@ -9,6 +9,8 @@ def test_real_observed_quote():
     assert result["ask"] == "28100.06"
     assert result["spread_mt5_points"] == 122
     assert result["tradable"] is False
+    assert result["mt5_display_clock_unzoned"] == "04:28:54"
+    assert result["broker_timezone_verified"] is False
 
 @pytest.mark.parametrize("text", [
     GOOD.replace("122 L:", "121 L:"),
