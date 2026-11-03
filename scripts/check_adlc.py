@@ -6,7 +6,22 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = ("AGENTS.md", "docs/adlc/README.md", "docs/adlc/status.md",
-            ".github/pull_request_template.md", ".github/ISSUE_TEMPLATE/adlc-change.md")
+            "docs/verification.md", "docs/adlc/templates/intent.md",
+            "docs/adlc/templates/evidence.md", "docs/adlc/templates/ai-components.md",
+            ".github/workflows/adlc.yml", ".github/pull_request_template.md",
+            ".github/ISSUE_TEMPLATE/adlc-change.md", "scripts/check_adlc.py",
+            "scripts/ci_receipt.py", "tests/run-all-tests.sh",
+            "tests/test_adlc.py", "tests/test_ci_receipt.py")
+CHANGE_FILES = ("intent.md", "evidence.md")
+
+
+def _markdown_has_content(path):
+    """Reject empty records while allowing headings, lists and table entries."""
+    text = path.read_text(encoding="utf-8")
+    text = re.sub(r"```.*?```", "", text, flags=re.S)
+    text = re.sub(r"<!--.*?(?:-->|\Z)", "", text, flags=re.S)
+    text = re.sub(r"[#>*_`|\s-]", "", text)
+    return bool(text)
 
 def check(root):
     errors = []
@@ -26,9 +41,11 @@ def check(root):
                 errors.append(f"{path.relative_to(root)}: invalid local link {target}")
     for directory in (root / "docs/adlc/changes").glob("*"):
         if directory.is_dir():
-            for name in ("intent.md", "evidence.md"):
+            for name in CHANGE_FILES:
                 if not (directory / name).is_file():
                     errors.append(f"{directory.name}: missing {name}")
+                elif not _markdown_has_content(directory / name):
+                    errors.append(f"{directory.name}: empty {name}")
     return errors
 
 if __name__ == "__main__":

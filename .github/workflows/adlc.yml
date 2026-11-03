@@ -23,7 +23,13 @@ jobs:
           PYTEST_ADDOPTS: --junitxml=${{ runner.temp }}/adlc-evidence/tests.xml
         run: |
           mkdir -p "$RUNNER_TEMP/adlc-evidence"
-          bash tests/run-all-tests.sh
+          fixture_root=$(mktemp -d /tmp/adlc.XXXXXX)
+          trap 'rm -rf -- "$fixture_root"' EXIT
+          mkdir -p "$fixture_root/home" "$fixture_root/tmp"
+          env -i PATH=/usr/bin:/bin HOME="$fixture_root/home" \
+            TMPDIR="$fixture_root/tmp" LANG=C.UTF-8 \
+            PYTEST_ADDOPTS="$PYTEST_ADDOPTS" \
+            bash tests/run-all-tests.sh
       - name: Record tested revision
         if: always()
         env:
