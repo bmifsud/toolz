@@ -18,7 +18,7 @@ def parse_text(text, spread_text=None):
     if len(rows) != 1:
         raise ValueError("Missing or ambiguous NAS100 row")
     match = ROW.search(rows[0])
-    spread = SPREAD.search(text) if spread_text is None else re.search(r"\b(\d{1,5})\s*$", spread_text.strip())
+    spread = SPREAD.search(text) if spread_text is None else re.search(r"(\d{1,5})\s*$", spread_text.strip())
     clock = DISPLAY_CLOCK.search(text)
     if not match or not spread or not clock:
         raise ValueError("Bid, ask, or MT5 spread not recognized")
@@ -35,21 +35,44 @@ def extract(path):
     data = Path(path).read_bytes()
     if data[:8] != b"\x89PNG\r\n\x1a\n" or (int.from_bytes(data[16:20],"big"),int.from_bytes(data[20:24],"big")) != (WIDTH,HEIGHT):
         raise ValueError("Unsupported screenshot dimensions or format")
-    crop = subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-i",str(path),
-                           "-vf","crop=570:100:90:555","-f","image2pipe","-vcodec","png","-"],
-                          capture_output=True,timeout=15,check=True)
-    ocr = subprocess.run(["tesseract","stdin","stdout","--psm","6"],
-                         input=crop.stdout,capture_output=True,timeout=15,
-                         env=__import__("os").environ | {"OMP_THREAD_LIMIT":"1"},check=True)
-    spread_crop = subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-i",str(path),
-                                  "-vf","crop=165:35:90:625,scale=660:140:flags=neighbor",
-                                  "-f","image2pipe","-vcodec","png","-"],
-                                 capture_output=True,timeout=15,check=True)
-    spread_ocr = subprocess.run(["tesseract","stdin","stdout","--psm","7"],
-                                input=spread_crop.stdout,capture_output=True,timeout=15,
-                                env=__import__("os").environ | {"OMP_THREAD_LIMIT":"1"},check=True)
-    return parse_text(ocr.stdout.decode("utf-8",errors="replace"),
-                      spread_ocr.stdout.decode("utf-8",errors="replace"))
+    def recognize(vf, psm):
+        cropped = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
+                                  "-vf", vf, "-f", "image2pipe", "-vcodec", "png", "-"],
+                                 capture_output=True, timeout=15, check=True)
+        ocr = subprocess.run(["tesseract", "stdin", "stdout", "--psm", str(psm)],
+                             input=cropped.stdout, capture_output=True, timeout=15,
+                             env=__import__("os").environ | {"OMP_THREAD_LIMIT":"1"}, check=True)
+        return ocr.stdout.decode("utf-8", errors="replace")
+
+    candidates = []
+    for layout, row_crop, spread_crop in (
+        ("split_screen", "crop=570:100:90:555", "crop=165:35:90:625,scale=660:140:flags=neighbor"),
+        ("full_screen", "crop=620:105:95:550", "crop=170:35:95:625,scale=680:140:flags=neighbor"),
+    ):
+        try:
+            row_text = recognize(row_crop, 6)
+            spread_text = recognize(spread_crop, 7)
+            result = parse_text(row_text, spread_text)
+            # The spread crop is independently required to contain the same display clock.
+            spread_clock = DISPLAY_CLOCK.search(spread_text)
+            if not spread_clock:
+                raise ValueError("Missing clock in spread crop")
+            if spread_clock.group(0) != result["mt5_display_clock_unzoned"]:
+                result["mt5_display_clock_unzoned"] = spread_clock.group(0)
+                result["clock_ocr_disagreement"] = True
+            result["layout_candidate"] = layout
+            candidates.append(result)
+        except ValueError:
+            continue
+    if not candidates:
+        raise ValueError("No validated MT5 layout")
+    if len(candidates) > 1:
+        keys = ("symbol", "bid", "ask", "spread_mt5_points", "mt5_display_clock_unzoned")
+        if any(tuple(candidate[k] for k in keys) != tuple(candidates[0][k] for k in keys)
+               for candidate in candidates[1:]):
+            raise ValueError("Conflicting MT5 layout OCR candidates")
+        candidates[0]["layout_candidate"] = "overlapping_layouts_agree"
+    return candidates[0]
 
 def main():
     p=argparse.ArgumentParser()
