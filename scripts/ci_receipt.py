@@ -12,8 +12,10 @@ def receipt(commit, outcome, run_id, attempt, event):
         raise ValueError("Expected full tested Git commit")
     if outcome not in {"success", "failure", "cancelled", "skipped"}:
         raise ValueError("Unknown gate outcome")
-    if not run_id.isdigit() or not attempt.isdigit():
-        raise ValueError("Expected numeric CI run identifiers")
+    if not all(re.fullmatch(r"[1-9][0-9]*", value) for value in (run_id, attempt)):
+        raise ValueError("Expected positive ASCII CI run identifiers")
+    if event not in {"pull_request", "push"}:
+        raise ValueError("Unsupported CI event")
     return {
         "schema_version": 1,
         "tested_commit": commit,
