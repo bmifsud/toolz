@@ -1,6 +1,6 @@
 """Evaluate consecutive read-only OCR observations. No orders or ledger integration."""
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -10,6 +10,7 @@ def evaluate(records, max_age_seconds=30):
     if len(records) < 3:
         return {"status": "INSUFFICIENT_SAMPLES", "tradable": False}
     previous = None
+    now = datetime.now(timezone.utc)
     unique = set()
     for record in records:
         try:
@@ -20,15 +21,19 @@ def evaluate(records, max_age_seconds=30):
                 raise ValueError("Missing timezone")
             bid, ask = Decimal(record["bid"]), Decimal(record["ask"])
             points = int(record["spread_mt5_points"])
-            if bid <= 0 or ask <= bid or points <= 0 or (ask-bid)*100 != points:
+            if not bid.is_finite() or not ask.is_finite() or bid <= 0 or ask <= bid or points <= 0 or (ask-bid)*100 != points:
                 raise ValueError("Spread inconsistency")
+            if at > now + timedelta(seconds=2):
+                raise ValueError("Future capture time")
+            if (now-at).total_seconds() > max_age_seconds:
+                return {"status":"STALE_CAPTURE","tradable":False}
             if previous and at <= previous:
                 raise ValueError("Non-increasing capture times")
             previous = at
             unique.add((bid, ask))
         except (ValueError,KeyError,TypeError,ArithmeticError) as e:
             return {"status":"REJECTED","tradable":False,"reason":str(e)}
-    if (datetime.now(timezone.utc)-previous).total_seconds()>max_age_seconds:
+    if (now-previous).total_seconds()>max_age_seconds:
         return {"status":"STALE_CAPTURE","tradable":False}
     if len(unique)<2:
         return {"status":"NO_PRICE_CHANGE_OBSERVED","tradable":False}
