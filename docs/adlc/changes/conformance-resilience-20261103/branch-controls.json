@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "observed_at_utc": "2026-11-03T11:16:29.274464+00:00",
+  "repository": "bmifsud/toolz",
+  "branch": "main",
+  "source": "GitHub branch-protection GET via Desktop Commander",
+  "controls": {
+    "strict_up_to_date": true,
+    "github_actions_offline_check": true,
+    "one_or_more_required_reviews": true,
+    "stale_reviews_dismissed": true,
+    "latest_push_approval": true,
+    "admins_enforced": true,
+    "conversations_must_resolve": true,
+    "main_read_only_locked": true,
+    "force_pushes_denied": true,
+    "deletions_denied": true
+  },
+  "required_check": {
+    "context": "offline",
+    "app_id": 15368
+  },
+  "required_approving_reviews": 1,
+  "independent_human_approval": "unverified",
+  "live_acceptance": "unverified",
+  "release_hold": "enabled",
+  "repository_settings_modified_this_collection": false
+}
