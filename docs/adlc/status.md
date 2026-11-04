@@ -1,6 +1,6 @@
 # ADLC release ledger
 
-Updated 2026-11-03 against main `338889249cd0aaa0bd1792a152dd24ff97d41c1f`.
+Updated 2026-11-04 against main `356d3c12750882c5520d909c912f9efba86cfaa0`.
 See the [policy evidence record](changes/policy-evidence-20261103/evidence.md).
 
 | Workstream | Phase | Status | Evidence / next action |
@@ -10,6 +10,7 @@ See the [policy evidence record](changes/policy-evidence-20261103/evidence.md).
 | Required review evidence | Verify | Missing | PR #141 review endpoint returned an empty list; independent approval not established |
 | Branch protection | Verify | Control absent | Main protection endpoint returned HTTP 404 “Branch not protected”; repository rulesets returned an empty list; settings unchanged |
 | Device-access architecture | Implement | Commander selected | [PR #123](https://github.com/bmifsud/toolz/pull/123); no custom direct-device bridge recovery |
+| Secure OpenSSH alternative | Implement / Verify | Complete (PR unmerged) | See [evidence](changes/parallel-ssh-alternative/evidence.md); 159 offline tests pass; key auth & private/localhost only |
 | Commander lifecycle/security | Verify | Pending | Read-only access observed; authenticated disconnect/reconnect/cancel/restart/denial acceptance not verified; coordinate separate emulator/tablet work |
 | Tier-1 | Verify | Pending | [Issue #105](https://github.com/bmifsud/toolz/issues/105) and [#106](https://github.com/bmifsud/toolz/issues/106); live integrity/restore and scheduled/catch-up evidence incomplete |
 | Tier-2 selected workflow | Plan / Verify | Pending | User-selected Andronix Backup Debian + Google Drive needs implementation/acceptance evidence; existing snapshot scripts do not establish the replacement workflow |

@@ -8,4 +8,4 @@ done
 python3 -m pytest --version >/dev/null || { echo 'Missing prerequisite: pytest' >&2; exit 1; }
 python3 scripts/check_adlc.py
 while IFS= read -r -d '' file; do bash -n "$file"; done < <(find backup tests -name '*.sh' -type f -print0)
-PYTHONPATH=nas100-trading python3 -m pytest automation/cline-watchdog/ tests/ backup/tests/ android-personal-automator/bridge/tests/ nas100-trading/tests/ -q
+PYTHONPATH=nas100-trading python3 -m pytest automation/cline-watchdog/ tests/ backup/tests/ ssh_remote/tests/ android-personal-automator/bridge/tests/ nas100-trading/tests/ -q
